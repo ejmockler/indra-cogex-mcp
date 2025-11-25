@@ -32,11 +32,13 @@ cogex-mcp
 
 ## MCP Client Integration
 
+> **Note**: REST API fallback only supports basic gene expression queries. For full access to all 16 tools (pathways, drugs, diseases, enrichment, clinical trials, variants, etc.), configure Neo4j credentials.
+
 ### Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
-**Option A: Neo4j Direct Access (Recommended - Best Performance)**
+**Option A: Neo4j Direct Access (Recommended - Full Tool Coverage)**
 ```json
 {
   "mcpServers": {
@@ -52,7 +54,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 }
 ```
 
-**Option B: REST API Fallback (Public Access - No Credentials)**
+**Option B: REST API Fallback (Demo Only - Gene Queries Only)**
 ```json
 {
   "mcpServers": {
@@ -66,6 +68,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
   }
 }
 ```
+*⚠️ Limited to gene↔tissue and gene↔GO term queries. Most tools unavailable.*
 
 Restart Claude Desktop after configuration.
 
@@ -289,8 +292,15 @@ cogex_analyze_kinase_enrichment(phosphosites=["MAPK1_T185", "MAPK1_Y187"])
 
 ### Connection Strategy
 - **Primary**: Direct Neo4j access via `indra_cogex.client` (<500ms simple queries)
+  - Full coverage: All 16 tools, 100/110 endpoints
+  - Advanced queries: Subnetworks, enrichment analysis, literature evidence
 - **Fallback**: REST API at discovery.indra.bio (public access, no credentials)
+  - Limited coverage: 1 of 16 tools (gene expression & GO terms only)
+  - Simple queries: Gene↔tissue, gene↔GO term lookups
+  - **Use only for**: Quick demos, testing, or when Neo4j unavailable
 - **Automatic**: Graceful degradation, circuit breakers, intelligent caching
+
+**⚠️ Production Recommendation**: Use Neo4j credentials. REST fallback provides <10% tool coverage and cannot execute pathway analysis, enrichment, subnetworks, drug queries, clinical trials, variants, or literature searches.
 
 ### Design Philosophy
 - **Compositional**: 16 tools, not 110 endpoints—organized by biological questions
@@ -308,19 +318,21 @@ Create `.env` from template:
 cp .env.example .env
 ```
 
-**Option A**: Neo4j + REST fallback (recommended)
+**Option A**: Neo4j + REST fallback (recommended for production)
 ```bash
 NEO4J_URL=bolt://your-server:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your_password
-USE_REST_FALLBACK=true
+USE_REST_FALLBACK=true  # Emergency fallback only
 ```
+*Provides full 16-tool coverage with automatic failover if Neo4j becomes unavailable.*
 
-**Option B**: REST only (no credentials needed)
+**Option B**: REST only (demo/testing - limited functionality)
 ```bash
 USE_REST_FALLBACK=true
 REST_API_BASE=https://discovery.indra.bio
 ```
+*⚠️ Only supports 1 of 16 tools (basic gene expression queries). Most tools will return errors.*
 
 The server validates credentials on startup and provides actionable error messages. Credentials never exposed in logs or errors.
 
