@@ -28,9 +28,12 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan():
+async def lifespan(app):
     """
     Lifespan context manager for server initialization and cleanup.
+
+    Args:
+        app: FastMCP application instance (required by FastMCP)
 
     Initializes:
     - Backend connections (Neo4j/REST)
