@@ -17,8 +17,8 @@ Performance targets:
 import asyncio
 import logging
 import time
+
 import pytest
-from typing import List
 
 from tests.performance.profiler import PerformanceProfiler
 
@@ -37,7 +37,7 @@ class TestLatencyBenchmarks:
         mode: str,
         params: dict,
         iterations: int = 10,
-    ) -> List[float]:
+    ) -> list[float]:
         """
         Benchmark a single query with multiple iterations.
 

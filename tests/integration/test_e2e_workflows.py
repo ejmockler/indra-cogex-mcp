@@ -8,19 +8,31 @@ Run with: pytest tests/integration/test_e2e_workflows.py -v -m integration
 """
 
 import pytest
+
 from cogex_mcp.schemas import (
-    DrugEffectQuery, DrugQueryMode,
-    PathwayQuery, PathwayQueryMode,
-    EnrichmentQuery, EnrichmentType, EnrichmentSource,
-    DiseasePhenotypeQuery, DiseaseQueryMode,
-    VariantQuery, VariantQueryMode,
-    CellLineQuery, CellLineQueryMode,
+    CellLineQuery,
+    CellLineQueryMode,
+    ClinicalTrialsMode,
+    ClinicalTrialsQuery,
+    DiseasePhenotypeQuery,
+    DiseaseQueryMode,
+    DrugEffectQuery,
+    DrugQueryMode,
+    EnrichmentQuery,
+    EnrichmentSource,
+    EnrichmentType,
+    GeneFeatureQuery,
     IdentifierQuery,
-    ProteinFunctionQuery, ProteinFunctionMode,
-    ClinicalTrialsQuery, ClinicalTrialsMode,
-    SubnetworkQuery, SubnetworkMode,
-    GeneFeatureQuery, QueryMode,
+    PathwayQuery,
+    PathwayQueryMode,
+    ProteinFunctionMode,
+    ProteinFunctionQuery,
+    QueryMode,
     ResponseFormat,
+    SubnetworkMode,
+    SubnetworkQuery,
+    VariantQuery,
+    VariantQueryMode,
 )
 
 

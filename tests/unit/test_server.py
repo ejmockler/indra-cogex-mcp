@@ -5,6 +5,7 @@ Run with: pytest tests/test_server.py -v
 """
 
 import pytest
+
 from cogex_mcp import mcp
 
 
@@ -111,8 +112,8 @@ async def test_entity_resolver():
 
 def test_formatter():
     """Test response formatter."""
-    from cogex_mcp.services.formatter import get_formatter
     from cogex_mcp.constants import ResponseFormat
+    from cogex_mcp.services.formatter import get_formatter
 
     formatter = get_formatter()
 
@@ -174,7 +175,7 @@ def test_tool2_annotations():
 
 def test_subnetwork_schemas():
     """Test subnetwork-related schemas."""
-    from cogex_mcp.schemas import SubnetworkMode, SubnetworkQuery, IndraStatement, NetworkStatistics
+    from cogex_mcp.schemas import SubnetworkMode, SubnetworkQuery
 
     # Test SubnetworkMode enum
     assert SubnetworkMode.DIRECT == "direct"
@@ -207,7 +208,7 @@ def test_subnetwork_schemas():
 
 def test_tool3_enrichment_schemas():
     """Test enrichment analysis schemas."""
-    from cogex_mcp.schemas import EnrichmentType, EnrichmentSource, EnrichmentQuery
+    from cogex_mcp.schemas import EnrichmentQuery, EnrichmentSource, EnrichmentType
 
     # Test EnrichmentType enum
     assert EnrichmentType.DISCRETE == "discrete"
@@ -235,7 +236,7 @@ def test_tool3_enrichment_schemas():
 
 def test_tool4_drug_schemas():
     """Test drug/effect query schemas."""
-    from cogex_mcp.schemas import DrugQueryMode, DrugEffectQuery
+    from cogex_mcp.schemas import DrugEffectQuery, DrugQueryMode
 
     # Test DrugQueryMode enum
     assert DrugQueryMode.DRUG_TO_PROFILE == "drug_to_profile"
@@ -256,7 +257,7 @@ def test_tool4_drug_schemas():
 
 def test_tool5_disease_schemas():
     """Test disease/phenotype query schemas."""
-    from cogex_mcp.schemas import DiseaseQueryMode, DiseasePhenotypeQuery
+    from cogex_mcp.schemas import DiseasePhenotypeQuery, DiseaseQueryMode
 
     # Test DiseaseQueryMode enum
     assert DiseaseQueryMode.DISEASE_TO_MECHANISMS == "disease_to_mechanisms"
@@ -277,7 +278,7 @@ def test_tool5_disease_schemas():
 
 def test_tool6_pathway_schemas():
     """Test pathway query schemas."""
-    from cogex_mcp.schemas import PathwayQueryMode, PathwayQuery
+    from cogex_mcp.schemas import PathwayQuery, PathwayQueryMode
 
     # Test PathwayQueryMode enum
     assert PathwayQueryMode.GET_GENES == "get_genes"
@@ -296,7 +297,7 @@ def test_tool6_pathway_schemas():
 
 def test_tool7_cell_line_schemas():
     """Test cell line query schemas."""
-    from cogex_mcp.schemas import CellLineQueryMode, CellLineQuery
+    from cogex_mcp.schemas import CellLineQuery, CellLineQueryMode
 
     # Test CellLineQueryMode enum
     assert CellLineQueryMode.GET_PROPERTIES == "get_properties"
@@ -333,7 +334,7 @@ def test_tool8_clinical_trials_schemas():
 
 def test_tool9_literature_schemas():
     """Test literature query schemas."""
-    from cogex_mcp.schemas import LiteratureQueryMode, LiteratureQuery
+    from cogex_mcp.schemas import LiteratureQuery, LiteratureQueryMode
 
     # Test LiteratureQueryMode enum
     assert LiteratureQueryMode.GET_STATEMENTS_FOR_PMID == "get_statements_for_pmid"
@@ -352,7 +353,7 @@ def test_tool9_literature_schemas():
 
 def test_tool10_variants_schemas():
     """Test variant query schemas."""
-    from cogex_mcp.schemas import VariantQueryMode, VariantQuery
+    from cogex_mcp.schemas import VariantQuery, VariantQueryMode
 
     # Test VariantQueryMode enum
     assert VariantQueryMode.GET_FOR_GENE == "get_for_gene"

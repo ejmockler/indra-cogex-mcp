@@ -7,7 +7,8 @@ Run with: pytest tests/integration/test_tool02_subnetwork_integration.py -v -m i
 """
 
 import pytest
-from cogex_mcp.schemas import SubnetworkQuery, SubnetworkMode, ResponseFormat
+
+from cogex_mcp.schemas import ResponseFormat, SubnetworkMode, SubnetworkQuery
 
 
 @pytest.mark.integration

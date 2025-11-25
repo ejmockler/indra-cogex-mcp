@@ -7,7 +7,8 @@ Run with: pytest tests/integration/test_tool03_enrichment_integration.py -v -m i
 """
 
 import pytest
-from cogex_mcp.schemas import EnrichmentQuery, EnrichmentType, EnrichmentSource, ResponseFormat
+
+from cogex_mcp.schemas import EnrichmentQuery, EnrichmentSource, EnrichmentType, ResponseFormat
 
 
 @pytest.mark.integration

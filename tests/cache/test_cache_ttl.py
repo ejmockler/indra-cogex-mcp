@@ -8,10 +8,10 @@ Tests cache TTL behavior and optimization:
 - Memory vs freshness tradeoff
 """
 
-import pytest
 import asyncio
 import logging
-from typing import Dict, Any, List
+
+import pytest
 
 from cogex_mcp.services.cache import CacheService
 from tests.cache.conftest import MockQueryAdapter, simulate_realistic_workload
@@ -334,7 +334,7 @@ class TestTTLRecommendations:
         else:
             logger.info("  - Cache TTL configuration appears optimal")
 
-        logger.info(f"\nCurrent configuration:")
+        logger.info("\nCurrent configuration:")
         logger.info(f"  TTL: {cache.ttl_seconds}s")
         logger.info(f"  Max size: {cache.max_size}")
         logger.info(f"  Hit rate: {stats['hit_rate']:.1f}%")

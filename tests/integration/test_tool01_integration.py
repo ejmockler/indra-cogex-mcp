@@ -6,11 +6,13 @@ Tests complete flow: Tool → Entity Resolver → Adapter → Backends → Respo
 Validates end-to-end Phase 1 & 2 fixes working together.
 """
 
-import pytest
 import json
 import logging
-from cogex_mcp.tools.gene_feature import cogex_query_gene_or_feature
+
+import pytest
+
 from cogex_mcp.schemas import GeneFeatureQuery, QueryMode, ResponseFormat
+from cogex_mcp.tools.gene_feature import cogex_query_gene_or_feature
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +60,7 @@ class TestTool1GeneToFeatures:
             assert "gene" in data, "Response should include gene info"
             assert data["gene"]["name"] == "TP53"
             logger.info(f"✓ TP53 basic profile: {list(data.keys())}")
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             logger.warning(f"Response not JSON: {result[:200]}")
             # Still pass if response is not error
 
@@ -176,7 +178,7 @@ class TestTool1GeneToFeatures:
                 results.append(gene_symbol)
                 logger.info(f"✓ Retrieved {gene_symbol}")
 
-        assert len(results) >= 2, f"Should successfully query at least 2 genes"
+        assert len(results) >= 2, "Should successfully query at least 2 genes"
 
     async def test_unknown_gene_error(self):
         """

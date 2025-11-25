@@ -5,11 +5,13 @@ These tests simulate real usage patterns and validate that all Phase 1 & 2
 fixes work together in production scenarios.
 """
 
-import pytest
 import json
 import logging
-from cogex_mcp.tools.gene_feature import cogex_query_gene_or_feature
+
+import pytest
+
 from cogex_mcp.schemas import GeneFeatureQuery, QueryMode, ResponseFormat
+from cogex_mcp.tools.gene_feature import cogex_query_gene_or_feature
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +199,7 @@ class TestE2EWorkflows:
             gene_name_1 = results["symbol"]["gene"]["name"]
             gene_name_2 = results["curie"]["gene"]["name"]
             assert gene_name_1 == gene_name_2 == "TP53", \
-                f"Different formats should resolve to same gene"
+                "Different formats should resolve to same gene"
             logger.info("\n✓ All formats resolve to TP53")
 
         logger.info("\n" + "="*80)

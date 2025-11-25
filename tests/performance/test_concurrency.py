@@ -15,10 +15,8 @@ Performance targets:
 import asyncio
 import logging
 import time
-import pytest
-from typing import List, Tuple, Any
 
-from tests.performance.profiler import PerformanceProfiler
+import pytest
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +28,7 @@ class TestConcurrency:
 
     def _create_diverse_queries(
         self, known_entities: dict, count: int
-    ) -> List[Tuple[str, dict]]:
+    ) -> list[tuple[str, dict]]:
         """
         Create diverse queries across all tools.
 

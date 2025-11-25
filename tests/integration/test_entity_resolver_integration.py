@@ -8,9 +8,11 @@ Validates Phase 1 Fixes:
 - Correct parameters sent to backends
 """
 
-import pytest
 import logging
-from cogex_mcp.services.entity_resolver import get_resolver, EntityNotFoundError
+
+import pytest
+
+from cogex_mcp.services.entity_resolver import EntityNotFoundError, get_resolver
 
 logger = logging.getLogger(__name__)
 

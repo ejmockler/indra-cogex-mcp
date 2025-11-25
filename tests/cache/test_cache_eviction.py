@@ -8,10 +8,10 @@ Tests LRU (Least Recently Used) eviction behavior:
 - Edge cases
 """
 
-import pytest
 import asyncio
 import logging
-from typing import List, Dict, Any
+
+import pytest
 
 from cogex_mcp.services.cache import CacheService
 from tests.cache.conftest import MockQueryAdapter
@@ -373,7 +373,7 @@ class TestEvictionRecommendations:
         else:
             logger.info("  - Eviction behavior appears optimal")
 
-        logger.info(f"\nEviction metrics:")
+        logger.info("\nEviction metrics:")
         logger.info(f"  Total evictions: {stats['evictions']}")
         logger.info(f"  Capacity utilization: {stats['capacity_utilization']:.1f}%")
         logger.info(f"  Hit rate: {stats['hit_rate']:.1f}%")

@@ -15,10 +15,8 @@ Cache configuration:
 import asyncio
 import logging
 import time
-import pytest
-from typing import List, Dict, Any
 
-from tests.performance.profiler import PerformanceProfiler
+import pytest
 
 logger = logging.getLogger(__name__)
 

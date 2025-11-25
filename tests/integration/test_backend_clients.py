@@ -6,8 +6,9 @@ Tests direct query execution without higher-level abstractions, validating:
 - Phase 2 Fix: REST client None parameter handling
 """
 
-import pytest
 import logging
+
+import pytest
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,7 @@ class TestRESTClientIntegration:
         # REST client should be available
         assert adapter.rest_client is not None, "REST client should exist"
 
-        logger.info(f"✓ REST API client available")
+        logger.info("✓ REST API client available")
 
     async def test_get_meta(self, integration_adapter):
         """
@@ -160,7 +161,7 @@ class TestRESTClientIntegration:
 
             # Should either succeed or fail gracefully
             assert result is not None, "Should return a result"
-            logger.info(f"✓ get_meta endpoint accessible")
+            logger.info("✓ get_meta endpoint accessible")
 
         except Exception as e:
             # Document if this endpoint has issues

@@ -8,10 +8,9 @@ Tests cache effectiveness with different query patterns:
 - Workload simulations
 """
 
-import pytest
-import asyncio
 import logging
-from typing import Dict, Any
+
+import pytest
 
 from cogex_mcp.services.cache import CacheService
 from tests.cache.conftest import simulate_realistic_workload
@@ -170,7 +169,7 @@ class TestCacheHitRate:
         metrics = mock_query_adapter.get_metrics()
 
         logger.info("\nRealistic workload results:")
-        logger.info(f"  Duration: 10 seconds")
+        logger.info("  Duration: 10 seconds")
         logger.info(f"  Total queries: {metrics['total_queries']}")
         logger.info(f"  Backend calls: {metrics['backend_calls']}")
         logger.info(f"  Cache hit rate: {hit_rate:.1f}%")
@@ -200,7 +199,7 @@ class TestCacheHitRate:
 
         speedup = cold_time / warm_time if warm_time > 0 else 1.0
 
-        logger.info(f"\nCache performance:")
+        logger.info("\nCache performance:")
         logger.info(f"  Cold query: {cold_time*1000:.2f}ms")
         logger.info(f"  Warm query: {warm_time*1000:.2f}ms")
         logger.info(f"  Speedup: {speedup:.1f}x")
@@ -211,7 +210,6 @@ class TestCacheHitRate:
 
     async def test_cache_capacity_impact_on_hit_rate(self, known_entities):
         """Test how cache capacity affects hit rate."""
-        from cogex_mcp.services.cache import CacheService
         from tests.cache.conftest import MockQueryAdapter
 
         results = []

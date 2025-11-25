@@ -7,15 +7,19 @@ Run with: pytest tests/integration/test_tools11_16_integration.py -v -m integrat
 """
 
 import pytest
+
 from cogex_mcp.schemas import (
+    CellMarkerMode,
+    CellMarkerQuery,
+    HierarchyDirection,
     IdentifierQuery,
-    RelationshipQuery, RelationshipType,
-    OntologyHierarchyQuery, HierarchyDirection,
-    CellMarkerQuery, CellMarkerMode,
-    ProteinFunctionQuery, ProteinFunctionMode,
+    OntologyHierarchyQuery,
+    ProteinFunctionMode,
+    ProteinFunctionQuery,
+    RelationshipQuery,
+    RelationshipType,
     ResponseFormat,
 )
-
 
 # ============================================================================
 # Tool 11: Identifier Resolution

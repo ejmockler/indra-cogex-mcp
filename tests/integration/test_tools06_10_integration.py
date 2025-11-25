@@ -7,15 +7,20 @@ Run with: pytest tests/integration/test_tools06_10_integration.py -v -m integrat
 """
 
 import pytest
-from cogex_mcp.schemas import (
-    PathwayQuery, PathwayQueryMode,
-    CellLineQuery, CellLineQueryMode,
-    ClinicalTrialsQuery, ClinicalTrialsMode,
-    LiteratureQuery, LiteratureQueryMode,
-    VariantQuery, VariantQueryMode,
-    ResponseFormat,
-)
 
+from cogex_mcp.schemas import (
+    CellLineQuery,
+    CellLineQueryMode,
+    ClinicalTrialsMode,
+    ClinicalTrialsQuery,
+    LiteratureQuery,
+    LiteratureQueryMode,
+    PathwayQuery,
+    PathwayQueryMode,
+    ResponseFormat,
+    VariantQuery,
+    VariantQueryMode,
+)
 
 # ============================================================================
 # Tool 6: Pathway Queries

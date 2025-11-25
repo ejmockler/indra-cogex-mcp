@@ -90,6 +90,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Allow unused imports in __init__
 "src/cogex_mcp/server.py" = ["F401"]  # Tool imports are for side-effects (registration)
+"tests/**/*.py" = ["F841", "E712", "B007", "C416"]  # Allow test-specific patterns
 
 [tool.mypy]
 python_version = "3.10"

@@ -7,6 +7,7 @@ Run with: pytest tests/integration/test_tool05_disease_integration.py -v -m inte
 """
 
 import pytest
+
 from cogex_mcp.schemas import DiseasePhenotypeQuery, DiseaseQueryMode, ResponseFormat
 
 

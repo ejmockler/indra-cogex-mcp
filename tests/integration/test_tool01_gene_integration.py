@@ -7,6 +7,7 @@ Run with: pytest tests/integration/test_tool01_gene_integration.py -v -m integra
 """
 
 import pytest
+
 from cogex_mcp.schemas import GeneFeatureQuery, QueryMode, ResponseFormat
 
 

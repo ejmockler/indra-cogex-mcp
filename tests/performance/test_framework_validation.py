@@ -4,9 +4,9 @@ Framework validation test.
 Quick test to verify the performance testing framework is working correctly.
 """
 
-import pytest
 import logging
-from pathlib import Path
+
+import pytest
 
 from tests.performance.profiler import PerformanceProfiler
 
