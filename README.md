@@ -16,19 +16,46 @@ Model Context Protocol server providing unified access to the INDRA CoGEx biomed
 
 ## Installation
 
-### Quick Start
+### Quick Start (Local Development)
 
 ```bash
-# Install from GitHub
-pip install git+https://github.com/ejmockler/indra-cogex-mcp.git
+# Clone repository
+git clone https://github.com/ejmockler/indra-cogex-mcp.git
+cd indra-cogex-mcp
+
+# Install in development mode
+pip install -e ".[dev]"
 
 # Configure credentials
 cp .env.example .env
-# Edit .env - see Security section below
+# Edit .env with your Neo4j credentials (see Security section)
 
 # Start server
 cogex-mcp
 ```
+
+### System-Wide Installation (pipx)
+
+For use with local LLM tools (Ollama, etc.), install globally with pipx:
+
+```bash
+# Install pipx if needed
+brew install pipx  # macOS
+# or: python3 -m pip install --user pipx
+
+# Install cogex-mcp
+pipx install git+https://github.com/ejmockler/indra-cogex-mcp.git
+
+# Configure credentials
+# .env file goes in: ~/.local/pipx/venvs/cogex-mcp/lib/python3.X/.env
+cp .env.example ~/.local/pipx/venvs/cogex-mcp/lib/python3.14/.env
+# Edit the file with your Neo4j credentials
+
+# Verify installation
+cogex-mcp --help
+```
+
+**Note**: Replace `python3.14` with your Python version. Find it with: `ls ~/.local/pipx/venvs/cogex-mcp/lib/`
 
 ## MCP Client Integration
 
