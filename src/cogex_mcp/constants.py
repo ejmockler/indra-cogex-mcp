@@ -186,6 +186,4 @@ ERROR_TIMEOUT = (
     "- Use more specific identifiers"
 )
 
-ERROR_RATE_LIMIT = (
-    "Rate limit exceeded. Please wait {retry_after}s before retrying."
-)
+ERROR_RATE_LIMIT = "Rate limit exceeded. Please wait {retry_after}s before retrying."

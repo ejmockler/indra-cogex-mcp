@@ -7,26 +7,24 @@ Analyzes phosphorylation sites to identify enriched kinase activities.
 
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
+from pydantic import BaseModel, Field, field_validator
 
-from cogex_mcp.server import mcp
+from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    ENRICHMENT_TIMEOUT,
+    STATISTICAL_ANNOTATIONS,
+)
 from cogex_mcp.schemas import (
     BaseToolInput,
-    EntityRef,
     EnrichmentStatistics,
+    EntityRef,
 )
-from cogex_mcp.constants import (
-    STATISTICAL_ANNOTATIONS,
-    ResponseFormat,
-    ENRICHMENT_TIMEOUT,
-    CHARACTER_LIMIT,
-)
+from cogex_mcp.server import mcp
 from cogex_mcp.services.formatter import get_formatter
-from cogex_mcp.clients.adapter import get_adapter
-
-from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +41,13 @@ class KinaseEnrichmentQuery(BaseToolInput):
     Analyzes phosphorylation sites to predict upstream kinases.
     """
 
-    phosphosites: List[str] = Field(
+    phosphosites: list[str] = Field(
         ...,
         description="List of phosphosites (format: 'GENE_S123', 'GENE_T456', 'GENE_Y789')",
         min_length=1,
     )
 
-    background: Optional[List[str]] = Field(
+    background: list[str] | None = Field(
         None,
         description="Optional background phosphosites for normalization",
     )
@@ -69,7 +67,7 @@ class KinaseEnrichmentQuery(BaseToolInput):
 
     @field_validator("phosphosites", "background")
     @classmethod
-    def validate_phosphosite_format(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+    def validate_phosphosite_format(cls, v: list[str] | None) -> list[str] | None:
         """
         Validate phosphosite format: GENE_[STY]POSITION
 
@@ -82,7 +80,7 @@ class KinaseEnrichmentQuery(BaseToolInput):
             return None
 
         # Pattern: GENE_[STY]DIGITS
-        pattern = re.compile(r'^[A-Z0-9]+_[STY]\d+$', re.IGNORECASE)
+        pattern = re.compile(r"^[A-Z0-9]+_[STY]\d+$", re.IGNORECASE)
 
         invalid_sites = []
         for site in v:
@@ -117,7 +115,7 @@ class KinaseEnrichmentResult(BaseModel):
         ...,
         description="Total known substrates for this kinase in database",
     )
-    phosphosites: List[str] = Field(
+    phosphosites: list[str] = Field(
         ...,
         description="Input phosphosites attributed to this kinase",
     )
@@ -271,12 +269,12 @@ async def cogex_analyze_kinase_enrichment(
         # Count unique genes in phosphosites
         unique_genes = set()
         for site in params.phosphosites:
-            gene = site.split('_')[0]
+            gene = site.split("_")[0]
             unique_genes.add(gene)
 
         await ctx.report_progress(
             0.2,
-            f"Analyzing {len(params.phosphosites)} phosphosites from {len(unique_genes)} genes..."
+            f"Analyzing {len(params.phosphosites)} phosphosites from {len(unique_genes)} genes...",
         )
 
         # Prepare background phosphosites if provided
@@ -284,8 +282,7 @@ async def cogex_analyze_kinase_enrichment(
         if params.background:
             background_sites = params.background
             await ctx.report_progress(
-                0.3,
-                f"Using custom background set ({len(background_sites)} sites)..."
+                0.3, f"Using custom background set ({len(background_sites)} sites)..."
             )
         else:
             await ctx.report_progress(0.3, "Using default database background...")
@@ -311,11 +308,7 @@ async def cogex_analyze_kinase_enrichment(
 
         # Parse results
         results = _parse_kinase_results(enrichment_data)
-        statistics = _compute_kinase_statistics(
-            results,
-            params,
-            len(unique_genes)
-        )
+        statistics = _compute_kinase_statistics(results, params, len(unique_genes))
 
         # Build response
         response_data = {
@@ -351,8 +344,8 @@ async def cogex_analyze_kinase_enrichment(
 
 
 def _parse_kinase_results(
-    data: Dict[str, Any],
-) -> List[KinaseEnrichmentResult]:
+    data: dict[str, Any],
+) -> list[KinaseEnrichmentResult]:
     """Parse kinase enrichment results from backend response."""
     if not data.get("success") or not data.get("results"):
         return []
@@ -376,8 +369,10 @@ def _parse_kinase_results(
         # - high: 5+ substrates, p < 0.01, or >20% of known substrates
         # - medium: 3-4 substrates, p < 0.05
         # - low: 1-2 substrates
-        if substrate_count >= 5 or p_value < 0.01 or (
-            total_substrates > 0 and substrate_count / total_substrates > 0.2
+        if (
+            substrate_count >= 5
+            or p_value < 0.01
+            or (total_substrates > 0 and substrate_count / total_substrates > 0.2)
         ):
             confidence = "high"
         elif substrate_count >= 3 and p_value < 0.05:
@@ -404,15 +399,13 @@ def _parse_kinase_results(
 
 
 def _compute_kinase_statistics(
-    results: List[KinaseEnrichmentResult],
+    results: list[KinaseEnrichmentResult],
     params: KinaseEnrichmentQuery,
     total_genes: int,
 ) -> EnrichmentStatistics:
     """Compute overall kinase enrichment statistics."""
     # Count significant results
-    significant_results = sum(
-        1 for r in results if r.adjusted_p_value <= params.alpha
-    )
+    significant_results = sum(1 for r in results if r.adjusted_p_value <= params.alpha)
 
     return EnrichmentStatistics(
         total_results=len(results),

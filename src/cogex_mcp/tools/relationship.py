@@ -8,26 +8,24 @@ Modes:
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
+from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    READONLY_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
+)
 from cogex_mcp.schemas import (
+    RelationshipMetadata,
     RelationshipQuery,
     RelationshipType,
-    RelationshipMetadata,
-    RelationshipResponse,
 )
-from cogex_mcp.constants import (
-    READONLY_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
-    CHARACTER_LIMIT,
-)
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -203,7 +201,7 @@ async def cogex_check_relationship(
 async def _check_gene_in_pathway(
     params: RelationshipQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Check if gene is in pathway.
     entity1: gene, entity2: pathway
@@ -254,7 +252,7 @@ async def _check_gene_in_pathway(
 async def _check_drug_target(
     params: RelationshipQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Check if drug targets gene/protein.
     entity1: drug, entity2: gene
@@ -304,7 +302,7 @@ async def _check_drug_target(
 async def _check_drug_indication(
     params: RelationshipQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Check if drug is indicated for disease.
     entity1: drug, entity2: disease
@@ -353,7 +351,7 @@ async def _check_drug_indication(
 async def _check_drug_side_effect(
     params: RelationshipQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Check if drug causes side effect.
     entity1: drug, entity2: side effect
@@ -402,7 +400,7 @@ async def _check_drug_side_effect(
 async def _check_gene_disease(
     params: RelationshipQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Check if gene is associated with disease.
     entity1: gene, entity2: disease
@@ -452,7 +450,7 @@ async def _check_gene_disease(
 async def _check_disease_phenotype(
     params: RelationshipQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Check if disease has phenotype.
     entity1: disease, entity2: phenotype
@@ -501,7 +499,7 @@ async def _check_disease_phenotype(
 async def _check_gene_phenotype(
     params: RelationshipQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Check if gene is associated with phenotype.
     entity1: gene, entity2: phenotype
@@ -550,7 +548,7 @@ async def _check_gene_phenotype(
 async def _check_variant_association(
     params: RelationshipQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Check if variant is associated with trait/disease.
     entity1: variant (rsID), entity2: trait/disease
@@ -600,7 +598,7 @@ async def _check_variant_association(
 async def _check_cell_line_mutation(
     params: RelationshipQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Check if cell line has mutation in gene.
     entity1: cell line, entity2: gene
@@ -649,7 +647,7 @@ async def _check_cell_line_mutation(
 async def _check_cell_marker(
     params: RelationshipQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Check if gene is a marker for cell type.
     entity1: gene, entity2: cell type

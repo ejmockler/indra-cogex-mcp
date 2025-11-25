@@ -7,20 +7,19 @@ Enables bidirectional mapping between different identifier systems used in biolo
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
-from cogex_mcp.schemas import IdentifierQuery, IdentifierMapping
-from cogex_mcp.constants import (
-    INTERNAL_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
-    CHARACTER_LIMIT,
-)
-from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    INTERNAL_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
+)
+from cogex_mcp.schemas import IdentifierMapping, IdentifierQuery
+from cogex_mcp.server import mcp
+from cogex_mcp.services.formatter import get_formatter
 
 logger = logging.getLogger(__name__)
 
@@ -180,11 +179,11 @@ async def cogex_resolve_identifiers(
 
 async def _convert_identifiers(
     adapter,
-    identifiers: List[str],
+    identifiers: list[str],
     from_namespace: str,
     to_namespace: str,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Convert identifiers between namespaces using appropriate backend endpoint.
 
@@ -232,10 +231,10 @@ async def _convert_identifiers(
 
 
 def _select_endpoint(
-    identifiers: List[str],
+    identifiers: list[str],
     from_namespace: str,
     to_namespace: str,
-) -> tuple[str, Dict[str, Any]]:
+) -> tuple[str, dict[str, Any]]:
     """
     Select appropriate backend endpoint based on namespace pair.
 
@@ -272,11 +271,11 @@ def _select_endpoint(
 
 
 def _parse_conversion_results(
-    data: Dict[str, Any],
-    identifiers: List[str],
+    data: dict[str, Any],
+    identifiers: list[str],
     from_namespace: str,
     to_namespace: str,
-) -> tuple[List[IdentifierMapping], List[str]]:
+) -> tuple[list[IdentifierMapping], list[str]]:
     """
     Parse backend conversion results into mappings and unmapped lists.
 
@@ -300,8 +299,8 @@ def _parse_conversion_results(
         return [], identifiers
 
     # Build mappings
-    mappings: List[IdentifierMapping] = []
-    unmapped: List[str] = []
+    mappings: list[IdentifierMapping] = []
+    unmapped: list[str] = []
 
     for source_id in identifiers:
         targets = mappings_data.get(source_id)

@@ -7,9 +7,10 @@ Provides fixtures for cache testing including:
 - Mock query adapters
 """
 
-import pytest
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Any
+
+import pytest
 
 from cogex_mcp.services.cache import CacheService
 
@@ -115,8 +116,8 @@ class MockQueryAdapter:
     async def query_tool(
         self,
         tool_name: str,
-        params: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
         """
         Execute mock tool query with caching.
 
@@ -152,8 +153,8 @@ class MockQueryAdapter:
     def _generate_mock_response(
         self,
         tool_name: str,
-        params: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
         """
         Generate deterministic mock response.
 
@@ -190,7 +191,7 @@ class MockQueryAdapter:
         else:
             return {"data": "mock_response"}
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """
         Get adapter metrics.
 

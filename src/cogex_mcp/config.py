@@ -5,9 +5,7 @@ Loads environment variables with validation, defaults, and type safety.
 Follows MCP best practices for secure credential management.
 """
 
-import os
 from pathlib import Path
-from typing import Optional
 
 from dotenv import load_dotenv
 from pydantic import Field, field_validator
@@ -41,7 +39,7 @@ class Settings(BaseSettings):
     # Neo4j Configuration (Optional - Best Performance)
     # ========================================================================
 
-    neo4j_url: Optional[str] = Field(
+    neo4j_url: str | None = Field(
         default=None,
         description="Neo4j bolt URL (e.g., bolt://localhost:7687)",
     )
@@ -49,7 +47,7 @@ class Settings(BaseSettings):
         default="neo4j",
         description="Neo4j username",
     )
-    neo4j_password: Optional[str] = Field(
+    neo4j_password: str | None = Field(
         default=None,
         description="Neo4j password",
     )
@@ -234,9 +232,7 @@ class Settings(BaseSettings):
         valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         v_upper = v.upper()
         if v_upper not in valid_levels:
-            raise ValueError(
-                f"Invalid log level: {v}. Must be one of {valid_levels}"
-            )
+            raise ValueError(f"Invalid log level: {v}. Must be one of {valid_levels}")
         return v_upper
 
     @field_validator("transport")
@@ -246,9 +242,7 @@ class Settings(BaseSettings):
         valid_transports = {"stdio", "http"}
         v_lower = v.lower()
         if v_lower not in valid_transports:
-            raise ValueError(
-                f"Invalid transport: {v}. Must be 'stdio' or 'http'"
-            )
+            raise ValueError(f"Invalid transport: {v}. Must be 'stdio' or 'http'")
         return v_lower
 
     @field_validator("log_format")
@@ -258,9 +252,7 @@ class Settings(BaseSettings):
         valid_formats = {"json", "text"}
         v_lower = v.lower()
         if v_lower not in valid_formats:
-            raise ValueError(
-                f"Invalid log format: {v}. Must be 'json' or 'text'"
-            )
+            raise ValueError(f"Invalid log format: {v}. Must be 'json' or 'text'")
         return v_lower
 
     # ========================================================================
@@ -306,15 +298,19 @@ class Settings(BaseSettings):
             ]
 
             if env_file_exists:
-                error_msg.extend([
-                    f"Found .env file at: {env_file_path}",
-                    "Please verify your credentials are correctly set.",
-                ])
+                error_msg.extend(
+                    [
+                        f"Found .env file at: {env_file_path}",
+                        "Please verify your credentials are correctly set.",
+                    ]
+                )
             else:
-                error_msg.extend([
-                    f"No .env file found at: {env_file_path}",
-                    "Copy .env.example to .env and configure your credentials.",
-                ])
+                error_msg.extend(
+                    [
+                        f"No .env file found at: {env_file_path}",
+                        "Copy .env.example to .env and configure your credentials.",
+                    ]
+                )
 
             error_msg.append("\nSecurity Note: Never commit .env files to version control!")
 

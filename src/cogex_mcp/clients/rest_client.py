@@ -10,16 +10,15 @@ Provides access to public INDRA CoGEx REST API with:
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
-from urllib.parse import urljoin
+from typing import Any
 
 import httpx
 from tenacity import (
+    before_sleep_log,
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
-    before_sleep_log,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,7 +60,7 @@ class RestClient:
         self.max_retries = max_retries
         self.retry_backoff_factor = retry_backoff_factor
 
-        self.client: Optional[httpx.AsyncClient] = None
+        self.client: httpx.AsyncClient | None = None
         self._lock = asyncio.Lock()
 
         # Connection pool configuration
@@ -108,7 +107,7 @@ class RestClient:
         self,
         query_name: str,
         **params: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute named query against REST API.
 
@@ -178,11 +177,7 @@ class RestClient:
             logger.error(f"Query '{query_name}' error: {e}")
             raise
 
-    def _parse_response(
-        self,
-        raw_data: Any,
-        query_name: str
-    ) -> Any:
+    def _parse_response(self, raw_data: Any, query_name: str) -> Any:
         """
         Parse API response into standardized format.
 
@@ -217,11 +212,8 @@ class RestClient:
         return raw_data
 
     def _format_entity_tuple(
-        self,
-        entity: Any,
-        default_namespace: str,
-        required: bool = True
-    ) -> Optional[list]:
+        self, entity: Any, default_namespace: str, required: bool = True
+    ) -> list | None:
         """
         Convert entity to [namespace, id] format required by INDRA CoGEx API.
 
@@ -259,12 +251,8 @@ class RestClient:
         raise ValueError(f"Invalid entity format: {entity}")
 
     def _extract_entity_param(
-        self,
-        params: Dict[str, Any],
-        param_names: list[str],
-        namespace: str,
-        required: bool = True
-    ) -> Optional[list]:
+        self, params: dict[str, Any], param_names: list[str], namespace: str, required: bool = True
+    ) -> list | None:
         """
         Extract and format entity parameter from params dict.
 
@@ -295,7 +283,7 @@ class RestClient:
         self,
         query_name: str,
         **params: Any,
-    ) -> tuple[str, str, Dict[str, Any]]:
+    ) -> tuple[str, str, dict[str, Any]]:
         """
         Map query names to REST endpoints with lazy parameter formatting.
 
@@ -312,8 +300,9 @@ class RestClient:
         Raises:
             ValueError: If query name is unknown
         """
+
         # Helper function for cleaner parameter extraction
-        def extract(param_names: list[str], namespace: str, required: bool = True) -> Optional[list]:
+        def extract(param_names: list[str], namespace: str, required: bool = True) -> list | None:
             """Extract and format entity parameter from multiple possible names."""
             return self._extract_entity_param(params, param_names, namespace, required)
 
@@ -332,38 +321,56 @@ class RestClient:
         # ========================================================================
 
         elif query_name == "get_tissues_for_gene":
-            return "/api/get_tissues_for_gene", "POST", {
-                "gene": extract(["gene", "gene_id"], "HGNC")
-            }
+            return (
+                "/api/get_tissues_for_gene",
+                "POST",
+                {"gene": extract(["gene", "gene_id"], "HGNC")},
+            )
 
         elif query_name == "get_genes_in_tissue":
-            return "/api/get_genes_in_tissue", "POST", {
-                "tissue": extract(["tissue", "tissue_id"], "UBERON"),
-                "limit": params.get("limit", 20),
-                "offset": params.get("offset", 0)
-            }
+            return (
+                "/api/get_genes_in_tissue",
+                "POST",
+                {
+                    "tissue": extract(["tissue", "tissue_id"], "UBERON"),
+                    "limit": params.get("limit", 20),
+                    "offset": params.get("offset", 0),
+                },
+            )
 
         elif query_name == "is_gene_in_tissue":
-            return "/api/is_gene_in_tissue", "POST", {
-                "gene": extract(["gene", "gene_id"], "HGNC"),
-                "tissue": extract(["tissue", "tissue_id"], "UBERON")
-            }
+            return (
+                "/api/is_gene_in_tissue",
+                "POST",
+                {
+                    "gene": extract(["gene", "gene_id"], "HGNC"),
+                    "tissue": extract(["tissue", "tissue_id"], "UBERON"),
+                },
+            )
 
         # ========================================================================
         # GO Term Queries (Priority 1)
         # ========================================================================
 
         elif query_name == "get_go_terms_for_gene":
-            return "/api/get_go_terms_for_gene", "POST", {
-                "gene": extract(["gene", "gene_id"], "HGNC"),
-                "include_indirect": params.get("include_indirect", False)
-            }
+            return (
+                "/api/get_go_terms_for_gene",
+                "POST",
+                {
+                    "gene": extract(["gene", "gene_id"], "HGNC"),
+                    "include_indirect": params.get("include_indirect", False),
+                },
+            )
 
         elif query_name == "get_genes_for_go_term":
-            return "/api/get_genes_for_go_term", "POST", {
-                "go_term": extract(["go_term", "go_id"], "GO"),
-                "include_indirect": params.get("include_indirect", False)
-            }
+            return (
+                "/api/get_genes_for_go_term",
+                "POST",
+                {
+                    "go_term": extract(["go_term", "go_id"], "GO"),
+                    "include_indirect": params.get("include_indirect", False),
+                },
+            )
 
         # Unknown query - this should be caught by higher-level code
         else:
@@ -386,7 +393,7 @@ class RestClient:
             logger.error(f"REST health check failed: {e}")
             raise
 
-    async def get_api_info(self) -> Dict[str, Any]:
+    async def get_api_info(self) -> dict[str, Any]:
         """
         Get API information and available endpoints.
 

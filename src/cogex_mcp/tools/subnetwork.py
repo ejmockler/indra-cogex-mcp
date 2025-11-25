@@ -12,28 +12,27 @@ Modes:
 """
 
 import logging
-from typing import Any, Dict, List, Set
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
+from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    READONLY_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
+)
 from cogex_mcp.schemas import (
-    SubnetworkQuery,
-    SubnetworkMode,
+    EntityRef,
+    GeneNode,
     IndraStatement,
     NetworkStatistics,
-    GeneNode,
-    EntityRef,
+    SubnetworkMode,
+    SubnetworkQuery,
 )
-from cogex_mcp.constants import (
-    READONLY_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
-    CHARACTER_LIMIT,
-)
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +207,7 @@ async def cogex_extract_subnetwork(
 async def _extract_direct(
     params: SubnetworkQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: direct
     Extract direct mechanistic edges between specified genes.
@@ -265,7 +264,7 @@ async def _extract_direct(
 async def _extract_mediated(
     params: SubnetworkQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: mediated
     Find two-hop paths connecting genes through intermediates (A→X→B).
@@ -318,7 +317,7 @@ async def _extract_mediated(
 async def _extract_shared_upstream(
     params: SubnetworkQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: shared_upstream
     Find shared regulators (A←X→B).
@@ -355,7 +354,7 @@ async def _extract_shared_upstream(
 async def _extract_shared_downstream(
     params: SubnetworkQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: shared_downstream
     Find shared targets (A→X←B).
@@ -392,7 +391,7 @@ async def _extract_shared_downstream(
 async def _extract_source_to_targets(
     params: SubnetworkQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: source_to_targets
     Find all downstream targets of a source gene.
@@ -456,9 +455,9 @@ async def _extract_source_to_targets(
 
 
 def _parse_statements(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     include_evidence: bool = False,
-) -> List[IndraStatement]:
+) -> list[IndraStatement]:
     """Parse INDRA statements from backend response."""
     if not data.get("success") or not data.get("statements"):
         return []
@@ -493,11 +492,11 @@ def _parse_statements(
 
 
 def _extract_nodes_from_statements(
-    statements: List[IndraStatement],
-    resolved_genes: List[GeneNode],
-) -> List[GeneNode]:
+    statements: list[IndraStatement],
+    resolved_genes: list[GeneNode],
+) -> list[GeneNode]:
     """Extract unique nodes from statements and resolved genes."""
-    nodes_dict: Dict[str, GeneNode] = {}
+    nodes_dict: dict[str, GeneNode] = {}
 
     # Add resolved genes first
     for gene in resolved_genes:
@@ -527,12 +526,12 @@ def _extract_nodes_from_statements(
 
 
 def _compute_statistics(
-    nodes: List[GeneNode],
-    statements: List[IndraStatement],
+    nodes: list[GeneNode],
+    statements: list[IndraStatement],
 ) -> NetworkStatistics:
     """Compute network-level statistics."""
     # Count statement types
-    stmt_types: Dict[str, int] = {}
+    stmt_types: dict[str, int] = {}
     total_evidence = 0
     total_belief = 0.0
 

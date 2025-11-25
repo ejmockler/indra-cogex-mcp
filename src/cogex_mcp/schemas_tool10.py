@@ -5,9 +5,9 @@ This file contains schemas for cogex_query_variants tool.
 Will be imported into main schemas.py file.
 """
 
-from typing import Optional, Tuple
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator
+
+from pydantic import BaseModel, Field
 
 
 class VariantQueryMode(str, Enum):
@@ -30,7 +30,7 @@ class VariantNode(BaseModel):
     ref_allele: str = Field(..., description="Reference allele")
     alt_allele: str = Field(..., description="Alternate allele")
     p_value: float = Field(..., description="GWAS p-value")
-    odds_ratio: Optional[float] = None
+    odds_ratio: float | None = None
     trait: str = Field(..., description="Associated trait or phenotype")
     study: str = Field(..., description="GWAS study identifier")
     source: str = Field(..., description="Data source (gwas_catalog, disgenet)")
@@ -43,4 +43,4 @@ class PhenotypeNode(BaseModel):
     curie: str
     namespace: str = Field(default="hpo", description="Typically HPO")
     identifier: str
-    description: Optional[str] = None
+    description: str | None = None

@@ -11,27 +11,24 @@ Modes:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
-from cogex_mcp.schemas import (
-    ProteinFunctionQuery,
-    ProteinFunctionMode,
-    EnzymeActivity,
-    GeneNode,
-)
+from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
-    READONLY_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
     CHARACTER_LIMIT,
+    READONLY_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
 )
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.schemas import (
+    ProteinFunctionMode,
+    ProteinFunctionQuery,
+)
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +174,7 @@ async def cogex_query_protein_functions(
 async def _get_enzyme_activities(
     params: ProteinFunctionQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: gene_to_activities
     Get all enzyme activities for a specific gene.
@@ -216,7 +213,7 @@ async def _get_enzyme_activities(
 async def _get_genes_for_activity(
     params: ProteinFunctionQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: activity_to_genes
     Find all genes with a specific enzyme activity.
@@ -265,7 +262,7 @@ async def _get_genes_for_activity(
 async def _check_enzyme_activity(
     params: ProteinFunctionQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: check_activity
     Check if a gene has a specific enzyme activity.
@@ -281,7 +278,9 @@ async def _check_enzyme_activity(
     resolver = get_resolver()
     gene = await resolver.resolve_gene(params.gene)
 
-    await ctx.report_progress(0.4, f"Checking if {gene.name} has '{params.enzyme_activity}' activity...")
+    await ctx.report_progress(
+        0.4, f"Checking if {gene.name} has '{params.enzyme_activity}' activity..."
+    )
 
     adapter = await get_adapter()
 
@@ -328,7 +327,7 @@ async def _check_enzyme_activity(
 async def _check_function_types(
     params: ProteinFunctionQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: check_function_types
     Batch check if genes have specific function types (kinase, phosphatase, TF).
@@ -373,7 +372,7 @@ async def _check_function_types(
     for gene_name, gene in resolved_genes.items():
         if gene is None:
             # Gene could not be resolved
-            function_checks[gene_name] = {ft: False for ft in params.function_types}
+            function_checks[gene_name] = dict.fromkeys(params.function_types, False)
             continue
 
         gene_results = {}
@@ -410,7 +409,9 @@ async def _check_function_types(
                     gene_results[function_type] = False
                     continue
 
-                has_function = check_data.get("result", False) if check_data.get("success") else False
+                has_function = (
+                    check_data.get("result", False) if check_data.get("success") else False
+                )
                 gene_results[function_type] = has_function
 
             except Exception as e:
@@ -431,38 +432,42 @@ async def _check_function_types(
 # ============================================================================
 
 
-def _parse_enzyme_activities(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_enzyme_activities(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse enzyme activities from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     activities = []
     for record in data["records"]:
-        activities.append({
-            "activity": record.get("activity", "Unknown"),
-            "ec_number": record.get("ec_number"),
-            "confidence": record.get("confidence", "medium"),
-            "evidence_sources": record.get("evidence_sources", []),
-        })
+        activities.append(
+            {
+                "activity": record.get("activity", "Unknown"),
+                "ec_number": record.get("ec_number"),
+                "confidence": record.get("confidence", "medium"),
+                "evidence_sources": record.get("evidence_sources", []),
+            }
+        )
 
     return activities
 
 
-def _parse_gene_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_gene_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse gene list from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     genes = []
     for record in data["records"]:
-        genes.append({
-            "name": record.get("gene", record.get("name", "Unknown")),
-            "curie": record.get("gene_id", record.get("curie", "unknown:unknown")),
-            "namespace": "hgnc",
-            "identifier": record.get("gene_id", record.get("identifier", "unknown")),
-            "description": record.get("description"),
-            "synonyms": record.get("synonyms", []),
-        })
+        genes.append(
+            {
+                "name": record.get("gene", record.get("name", "Unknown")),
+                "curie": record.get("gene_id", record.get("curie", "unknown:unknown")),
+                "namespace": "hgnc",
+                "identifier": record.get("gene_id", record.get("identifier", "unknown")),
+                "description": record.get("description"),
+                "synonyms": record.get("synonyms", []),
+            }
+        )
 
     return genes
 

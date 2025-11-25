@@ -10,11 +10,12 @@ Provides high-performance caching for frequently accessed entities like:
 
 import asyncio
 import logging
-import time
 import sys
-from typing import Any, Optional, Dict, List, Tuple
+import time
+from collections import Counter, deque
 from dataclasses import dataclass
-from collections import deque, Counter
+from typing import Any
+
 from cachetools import TTLCache
 
 from cogex_mcp.config import settings
@@ -80,15 +81,14 @@ class CacheService:
         self._hit_rate_window = deque(maxlen=1000)  # Last 1000 operations
         self._key_access_count = Counter()  # Track hot keys
         self._ttl_expiration_count = 0
-        self._key_sizes: Dict[str, int] = {}  # Track key sizes
-        self._value_sizes: Dict[str, int] = {}  # Track value sizes
+        self._key_sizes: dict[str, int] = {}  # Track key sizes
+        self._value_sizes: dict[str, int] = {}  # Track value sizes
 
         logger.info(
-            f"CacheService initialized: "
-            f"max_size={max_size}, ttl={ttl_seconds}s, enabled={enabled}"
+            f"CacheService initialized: max_size={max_size}, ttl={ttl_seconds}s, enabled={enabled}"
         )
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         """
         Get value from cache.
 
@@ -227,7 +227,7 @@ class CacheService:
             max_size=self.max_size,
         )
 
-    def get_detailed_stats(self) -> Dict[str, Any]:
+    def get_detailed_stats(self) -> dict[str, Any]:
         """
         Get enhanced statistics with detailed metrics.
 
@@ -250,7 +250,9 @@ class CacheService:
             "avg_key_size": self._calculate_avg_key_size(),
             "avg_value_size": self._calculate_avg_value_size(),
             "total_memory_estimate": self._estimate_total_memory(),
-            "capacity_utilization": (stats.size / stats.max_size * 100) if stats.max_size > 0 else 0,
+            "capacity_utilization": (stats.size / stats.max_size * 100)
+            if stats.max_size > 0
+            else 0,
         }
 
         return detailed
@@ -322,7 +324,7 @@ class CacheService:
 
 
 # Global cache instance
-_cache: Optional[CacheService] = None
+_cache: CacheService | None = None
 
 
 def get_cache() -> CacheService:

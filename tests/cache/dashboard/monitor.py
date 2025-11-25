@@ -9,11 +9,11 @@ Provides continuous monitoring of cache performance with:
 """
 
 import asyncio
-import time
 import logging
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, asdict
+import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
+from typing import Any
 
 from cogex_mcp.services.cache import CacheService
 
@@ -62,14 +62,14 @@ class CacheMonitor:
         """
         self.cache = cache
         self.update_interval = update_interval
-        self.snapshots: List[CacheSnapshot] = []
+        self.snapshots: list[CacheSnapshot] = []
         self.monitoring = False
 
     async def start_monitoring(
         self,
         duration: int = 300,
         verbose: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Monitor cache for specified duration.
 
@@ -142,10 +142,10 @@ class CacheMonitor:
             f"Hits: {snapshot.hits} | "
             f"Misses: {snapshot.misses} | "
             f"Evictions: {snapshot.evictions} | "
-            f"Memory: {snapshot.memory_bytes/1024:.1f}KB"
+            f"Memory: {snapshot.memory_bytes / 1024:.1f}KB"
         )
 
-    def _generate_report(self) -> Dict[str, Any]:
+    def _generate_report(self) -> dict[str, Any]:
         """
         Generate comprehensive monitoring report.
 
@@ -175,7 +175,7 @@ class CacheMonitor:
 
         return summary
 
-    def _analyze_trends(self) -> Dict[str, Any]:
+    def _analyze_trends(self) -> dict[str, Any]:
         """Analyze trends over monitoring period."""
         if len(self.snapshots) < 2:
             return {}
@@ -195,7 +195,11 @@ class CacheMonitor:
 
         return {
             "hit_rate_change": hit_rate_change,
-            "hit_rate_trend": "improving" if hit_rate_change > 5 else "stable" if abs(hit_rate_change) <= 5 else "declining",
+            "hit_rate_trend": "improving"
+            if hit_rate_change > 5
+            else "stable"
+            if abs(hit_rate_change) <= 5
+            else "declining",
             "size_change": size_change,
             "memory_change_kb": memory_change / 1024,
             "total_hits": total_hits,
@@ -206,7 +210,7 @@ class CacheMonitor:
             "peak_memory_kb": max(s.memory_bytes for s in self.snapshots) / 1024,
         }
 
-    def _generate_recommendations(self) -> List[str]:
+    def _generate_recommendations(self) -> list[str]:
         """Generate optimization recommendations based on trends."""
         if not self.snapshots:
             return []
@@ -218,13 +222,11 @@ class CacheMonitor:
         # Hit rate recommendations
         if last.hit_rate < 50:
             recommendations.append(
-                "CRITICAL: Very low hit rate (<50%). "
-                "Consider increasing cache size or TTL."
+                "CRITICAL: Very low hit rate (<50%). Consider increasing cache size or TTL."
             )
         elif last.hit_rate < 70:
             recommendations.append(
-                "WARNING: Moderate hit rate (<70%). "
-                "Optimization may improve performance."
+                "WARNING: Moderate hit rate (<70%). Optimization may improve performance."
             )
 
         # Trend-based recommendations
@@ -237,20 +239,17 @@ class CacheMonitor:
         # Capacity recommendations
         if last.capacity_utilization > 95:
             recommendations.append(
-                "Cache near capacity (>95%). "
-                "Increase max_size to reduce evictions."
+                "Cache near capacity (>95%). Increase max_size to reduce evictions."
             )
         elif last.capacity_utilization > 80:
             recommendations.append(
-                "Cache utilization high (>80%). "
-                "Monitor for potential capacity issues."
+                "Cache utilization high (>80%). Monitor for potential capacity issues."
             )
 
         # Eviction recommendations
         if trends.get("total_evictions", 0) > trends.get("total_hits", 1) * 0.2:
             recommendations.append(
-                "High eviction rate (>20% of hits). "
-                "Increasing cache size will improve hit rate."
+                "High eviction rate (>20% of hits). Increasing cache size will improve hit rate."
             )
 
         # TTL recommendations
@@ -269,7 +268,7 @@ class CacheMonitor:
         # Memory recommendations
         if last.memory_bytes > 100 * 1024 * 1024:  # > 100MB
             recommendations.append(
-                f"High memory usage ({last.memory_bytes / (1024*1024):.1f}MB). "
+                f"High memory usage ({last.memory_bytes / (1024 * 1024):.1f}MB). "
                 "Consider reducing cache size or TTL."
             )
 
@@ -278,7 +277,7 @@ class CacheMonitor:
 
         return recommendations
 
-    def _summarize_performance(self) -> Dict[str, Any]:
+    def _summarize_performance(self) -> dict[str, Any]:
         """Summarize overall cache performance."""
         if not self.snapshots:
             return {}
@@ -359,7 +358,7 @@ async def run_monitoring_session(
     cache: CacheService,
     duration: int = 60,
     interval: int = 5,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Run a monitoring session and generate report.
 
@@ -386,32 +385,21 @@ async def run_monitoring_session(
 if __name__ == "__main__":
     """CLI entry point for cache monitoring."""
     import argparse
-    import sys
+
     from cogex_mcp.services.cache import get_cache
 
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
     parser = argparse.ArgumentParser(description="Monitor CoGEx cache performance")
     parser.add_argument(
-        "--duration",
-        type=int,
-        default=60,
-        help="Monitoring duration in seconds (default: 60)"
+        "--duration", type=int, default=60, help="Monitoring duration in seconds (default: 60)"
     )
     parser.add_argument(
-        "--interval",
-        type=int,
-        default=5,
-        help="Update interval in seconds (default: 5)"
+        "--interval", type=int, default=5, help="Update interval in seconds (default: 5)"
     )
-    parser.add_argument(
-        "--output",
-        type=str,
-        help="Export snapshots to JSON file"
-    )
+    parser.add_argument("--output", type=str, help="Export snapshots to JSON file")
 
     args = parser.parse_args()
 
@@ -424,9 +412,9 @@ if __name__ == "__main__":
         report = await monitor.start_monitoring(duration=args.duration, verbose=True)
 
         # Print summary
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("CACHE MONITORING REPORT")
-        print("="*70)
+        print("=" * 70)
 
         perf = report["performance_summary"]
         print(f"\nPerformance Score: {perf['performance_score']}/100 ({perf['performance_tier']})")

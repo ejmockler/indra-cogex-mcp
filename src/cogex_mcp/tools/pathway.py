@@ -11,27 +11,25 @@ Modes:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
+from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    READONLY_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
+)
 from cogex_mcp.schemas import (
+    PathwayNode,
     PathwayQuery,
     PathwayQueryMode,
-    PathwayNode,
-    GeneNode,
 )
-from cogex_mcp.constants import (
-    READONLY_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
-    CHARACTER_LIMIT,
-)
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +161,7 @@ async def cogex_query_pathway(
 async def _get_genes_in_pathway(
     params: PathwayQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_genes
     Get all genes in a specific pathway.
@@ -180,7 +178,7 @@ async def _get_genes_in_pathway(
         # Assume it's a pathway name or CURIE
         pathway_id = params.pathway
 
-    await ctx.report_progress(0.3, f"Fetching genes in pathway...")
+    await ctx.report_progress(0.3, "Fetching genes in pathway...")
 
     adapter = await get_adapter()
 
@@ -227,7 +225,7 @@ async def _get_genes_in_pathway(
 async def _get_pathways_for_gene(
     params: PathwayQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_pathways
     Get all pathways containing a specific gene.
@@ -285,7 +283,7 @@ async def _get_pathways_for_gene(
 async def _find_shared_pathways(
     params: PathwayQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: find_shared
     Find pathways containing ALL specified genes.
@@ -347,7 +345,7 @@ async def _find_shared_pathways(
 async def _check_membership(
     params: PathwayQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: check_membership
     Check if a specific gene is in a specific pathway.
@@ -401,7 +399,7 @@ async def _check_membership(
 # ============================================================================
 
 
-def _parse_pathway_node(data: Dict[str, Any]) -> Optional[PathwayNode]:
+def _parse_pathway_node(data: dict[str, Any]) -> PathwayNode | None:
     """Parse pathway node from backend response."""
     if not data:
         return None
@@ -420,39 +418,43 @@ def _parse_pathway_node(data: Dict[str, Any]) -> Optional[PathwayNode]:
         return None
 
 
-def _parse_gene_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_gene_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse gene list from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     genes = []
     for record in data["records"]:
-        genes.append({
-            "name": record.get("gene", record.get("name", "Unknown")),
-            "curie": record.get("gene_id", record.get("curie", "unknown:unknown")),
-            "namespace": "hgnc",
-            "identifier": record.get("gene_id", record.get("identifier", "unknown")),
-            "description": record.get("description"),
-        })
+        genes.append(
+            {
+                "name": record.get("gene", record.get("name", "Unknown")),
+                "curie": record.get("gene_id", record.get("curie", "unknown:unknown")),
+                "namespace": "hgnc",
+                "identifier": record.get("gene_id", record.get("identifier", "unknown")),
+                "description": record.get("description"),
+            }
+        )
 
     return genes
 
 
-def _parse_pathway_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_pathway_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse pathway list from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     pathways = []
     for record in data["records"]:
-        pathways.append({
-            "name": record.get("pathway", record.get("name", "Unknown")),
-            "curie": record.get("pathway_id", record.get("curie", "unknown:unknown")),
-            "source": record.get("source", "unknown"),
-            "description": record.get("description"),
-            "gene_count": record.get("gene_count", 0),
-            "url": record.get("url"),
-        })
+        pathways.append(
+            {
+                "name": record.get("pathway", record.get("name", "Unknown")),
+                "curie": record.get("pathway_id", record.get("curie", "unknown:unknown")),
+                "source": record.get("source", "unknown"),
+                "description": record.get("description"),
+                "gene_count": record.get("gene_count", 0),
+                "url": record.get("url"),
+            }
+        )
 
     return pathways
 

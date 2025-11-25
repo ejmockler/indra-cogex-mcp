@@ -10,18 +10,17 @@ Provides fixtures for performance testing including:
 
 import asyncio
 import logging
-import pytest
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
-from cogex_mcp.clients.adapter import ClientAdapter, get_adapter
-from cogex_mcp.config import settings
+import pytest
+
+from cogex_mcp.clients.adapter import get_adapter
 from tests.performance.profiler import PerformanceProfiler
 
 # Configure logging for performance tests
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,7 @@ def performance_profiler():
 
 
 @pytest.fixture(scope="session")
-def known_entities() -> Dict[str, Any]:
+def known_entities() -> dict[str, Any]:
     """
     Known-good entities for performance testing.
 
@@ -82,23 +81,23 @@ def known_entities() -> Dict[str, Any]:
     """
     return {
         "genes": [
-            "TP53",      # Tumor protein p53
-            "BRCA1",     # Breast cancer 1
-            "EGFR",      # Epidermal growth factor receptor
-            "KRAS",      # Kirsten rat sarcoma viral oncogene
-            "MAPK1",     # Mitogen-activated protein kinase 1
-            "AKT1",      # AKT serine/threonine kinase 1
-            "PTEN",      # Phosphatase and tensin homolog
-            "MYC",       # MYC proto-oncogene
-            "BCL2",      # BCL2 apoptosis regulator
-            "TNF",       # Tumor necrosis factor
+            "TP53",  # Tumor protein p53
+            "BRCA1",  # Breast cancer 1
+            "EGFR",  # Epidermal growth factor receptor
+            "KRAS",  # Kirsten rat sarcoma viral oncogene
+            "MAPK1",  # Mitogen-activated protein kinase 1
+            "AKT1",  # AKT serine/threonine kinase 1
+            "PTEN",  # Phosphatase and tensin homolog
+            "MYC",  # MYC proto-oncogene
+            "BCL2",  # BCL2 apoptosis regulator
+            "TNF",  # Tumor necrosis factor
         ],
         "drugs": [
-            "imatinib",       # Gleevec
-            "aspirin",        # Acetylsalicylic acid
+            "imatinib",  # Gleevec
+            "aspirin",  # Acetylsalicylic acid
             "pembrolizumab",  # Keytruda
-            "metformin",      # Glucophage
-            "doxorubicin",    # Adriamycin
+            "metformin",  # Glucophage
+            "doxorubicin",  # Adriamycin
         ],
         "diseases": [
             "diabetes mellitus",
@@ -126,19 +125,19 @@ def known_entities() -> Dict[str, Any]:
             "GO:0007165",  # signal transduction
         ],
         "variants": [
-            "rs7412",      # APOE variant
-            "rs429358",    # APOE variant
+            "rs7412",  # APOE variant
+            "rs429358",  # APOE variant
         ],
         "cell_lines": [
-            "A549",        # Lung cancer cell line
-            "MCF7",        # Breast cancer cell line
-            "HeLa",        # Cervical cancer cell line
+            "A549",  # Lung cancer cell line
+            "MCF7",  # Breast cancer cell line
+            "HeLa",  # Cervical cancer cell line
         ],
     }
 
 
 @pytest.fixture(scope="session")
-def performance_targets() -> Dict[str, Dict[str, float]]:
+def performance_targets() -> dict[str, dict[str, float]]:
     """
     Performance targets for latency benchmarks.
 
@@ -190,7 +189,7 @@ async def connection_pool_monitor(performance_adapter):
     """
     stats_history = []
 
-    def get_pool_stats() -> Dict[str, Any]:
+    def get_pool_stats() -> dict[str, Any]:
         """Get current connection pool statistics."""
         # Get Neo4j client pool stats if available
         if performance_adapter.neo4j_client:
@@ -198,8 +197,8 @@ async def connection_pool_monitor(performance_adapter):
             # Neo4j driver's connection pool API
             return {
                 "active_connections": 0,  # Would query from driver
-                "idle_connections": 0,    # Would query from driver
-                "total_connections": 0,   # Would query from driver
+                "idle_connections": 0,  # Would query from driver
+                "total_connections": 0,  # Would query from driver
                 "timestamp": asyncio.get_event_loop().time(),
             }
         return {}

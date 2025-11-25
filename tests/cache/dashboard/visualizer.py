@@ -9,8 +9,8 @@ Generates visualizations for cache performance:
 """
 
 import logging
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class CacheVisualizer:
 
     @staticmethod
     def generate_ascii_chart(
-        data: List[float],
+        data: list[float],
         title: str,
         width: int = 60,
         height: int = 10,
@@ -86,7 +86,7 @@ class CacheVisualizer:
         return "\n".join(chart_lines)
 
     @staticmethod
-    def format_metrics_table(metrics: Dict[str, Any]) -> str:
+    def format_metrics_table(metrics: dict[str, Any]) -> str:
         """
         Format metrics as ASCII table.
 
@@ -122,7 +122,7 @@ class CacheVisualizer:
         return "\n".join(lines)
 
     @staticmethod
-    def generate_dashboard_data(snapshots: List[Any]) -> Dict[str, Any]:
+    def generate_dashboard_data(snapshots: list[Any]) -> dict[str, Any]:
         """
         Generate data for dashboard visualization.
 
@@ -158,7 +158,7 @@ class CacheVisualizer:
 
     @staticmethod
     def generate_html_dashboard(
-        snapshots: List[Any],
+        snapshots: list[Any],
         title: str = "Cache Performance Dashboard",
     ) -> str:
         """
@@ -250,19 +250,19 @@ class CacheVisualizer:
         <div class="metrics-grid">
             <div class="metric-card">
                 <h3>Average Hit Rate</h3>
-                <p class="value">{dashboard_data['summary']['avg_hit_rate']:.1f}%</p>
+                <p class="value">{dashboard_data["summary"]["avg_hit_rate"]:.1f}%</p>
             </div>
             <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                 <h3>Peak Cache Size</h3>
-                <p class="value">{dashboard_data['summary']['max_size']}</p>
+                <p class="value">{dashboard_data["summary"]["max_size"]}</p>
             </div>
             <div class="metric-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                 <h3>Peak Memory</h3>
-                <p class="value">{dashboard_data['summary']['max_memory_kb']:.1f} KB</p>
+                <p class="value">{dashboard_data["summary"]["max_memory_kb"]:.1f} KB</p>
             </div>
             <div class="metric-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
                 <h3>Total Evictions</h3>
-                <p class="value">{dashboard_data['summary']['total_evictions']}</p>
+                <p class="value">{dashboard_data["summary"]["total_evictions"]}</p>
             </div>
         </div>
 
@@ -283,11 +283,11 @@ class CacheVisualizer:
     </div>
 
     <script>
-        const timestamps = {dashboard_data['timestamps']};
-        const hitRates = {dashboard_data['hit_rates']};
-        const sizes = {dashboard_data['sizes']};
-        const memoryUsage = {dashboard_data['memory_usage_kb']};
-        const evictions = {dashboard_data['evictions']};
+        const timestamps = {dashboard_data["timestamps"]};
+        const hitRates = {dashboard_data["hit_rates"]};
+        const sizes = {dashboard_data["sizes"]};
+        const memoryUsage = {dashboard_data["memory_usage_kb"]};
+        const evictions = {dashboard_data["evictions"]};
 
         // Hit Rate Chart
         new Chart(document.getElementById('hitRateChart'), {{
@@ -420,7 +420,7 @@ class CacheVisualizer:
 
     @staticmethod
     def print_summary_report(
-        report: Dict[str, Any],
+        report: dict[str, Any],
         detailed: bool = False,
     ) -> None:
         """
@@ -437,7 +437,9 @@ class CacheVisualizer:
         # Performance summary
         if "performance_summary" in report:
             perf = report["performance_summary"]
-            print(f"\nPerformance Score: {perf['performance_score']}/100 ({perf['performance_tier']})")
+            print(
+                f"\nPerformance Score: {perf['performance_score']}/100 ({perf['performance_tier']})"
+            )
             print(f"Hit Rate: {perf['hit_rate']:.1f}%")
             print(f"Capacity Utilization: {perf['capacity_utilization']:.1f}%")
             print(f"Eviction Rate: {perf['eviction_rate_pct']:.2f}%")
@@ -464,8 +466,8 @@ class CacheVisualizer:
 
 
 def generate_optimization_report(
-    cache_stats: Dict[str, Any],
-) -> List[str]:
+    cache_stats: dict[str, Any],
+) -> list[str]:
     """
     Generate cache optimization recommendations.
 
@@ -481,21 +483,16 @@ def generate_optimization_report(
     hit_rate = cache_stats.get("hit_rate", 0)
     if hit_rate < 50:
         recommendations.append(
-            "CRITICAL: Low hit rate (<50%). "
-            "Increase cache size or TTL immediately."
+            "CRITICAL: Low hit rate (<50%). Increase cache size or TTL immediately."
         )
     elif hit_rate < 70:
-        recommendations.append(
-            "WARNING: Moderate hit rate (<70%). "
-            "Consider optimization."
-        )
+        recommendations.append("WARNING: Moderate hit rate (<70%). Consider optimization.")
 
     # Memory analysis
     memory_mb = cache_stats.get("total_memory_estimate", 0) / (1024 * 1024)
     if memory_mb > 500:
         recommendations.append(
-            f"HIGH MEMORY: Using {memory_mb:.1f}MB. "
-            "Consider reducing cache size or TTL."
+            f"HIGH MEMORY: Using {memory_mb:.1f}MB. Consider reducing cache size or TTL."
         )
 
     # Eviction vs TTL balance
@@ -503,15 +500,9 @@ def generate_optimization_report(
     ttl_expirations = cache_stats.get("ttl_expirations", 0)
 
     if evictions > ttl_expirations * 2:
-        recommendations.append(
-            "Evictions >> TTL expirations. "
-            "Increase cache size or reduce TTL."
-        )
+        recommendations.append("Evictions >> TTL expirations. Increase cache size or reduce TTL.")
     elif ttl_expirations > evictions * 2:
-        recommendations.append(
-            "TTL expirations >> evictions. "
-            "Increase TTL for better utilization."
-        )
+        recommendations.append("TTL expirations >> evictions. Increase TTL for better utilization.")
 
     # Hot key analysis
     hot_keys = cache_stats.get("hot_keys", [])
@@ -530,9 +521,7 @@ def generate_optimization_report(
     # Capacity utilization
     utilization = cache_stats.get("capacity_utilization", 0)
     if utilization > 95:
-        recommendations.append(
-            "Cache at capacity. Increase max_size to improve performance."
-        )
+        recommendations.append("Cache at capacity. Increase max_size to improve performance.")
 
     if not recommendations:
         recommendations.append("Cache configuration appears optimal.")

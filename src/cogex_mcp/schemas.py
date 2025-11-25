@@ -5,15 +5,16 @@ Includes input schemas for tools and output schemas for responses.
 All schemas are MCP-compliant with proper validation.
 """
 
-from typing import Optional, List, Dict, Any, Tuple
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cogex_mcp.constants import (
-    ResponseFormat,
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
     MIN_PAGE_SIZE,
+    ResponseFormat,
 )
 
 # ============================================================================
@@ -73,8 +74,8 @@ class GeneNode(BaseModel):
     curie: str = Field(..., description="CURIE (e.g., 'hgnc:11998')")
     namespace: str = Field(default="hgnc", description="Namespace")
     identifier: str = Field(..., description="Identifier")
-    description: Optional[str] = Field(None, description="Gene description")
-    synonyms: List[str] = Field(default_factory=list, description="Alternative gene symbols")
+    description: str | None = Field(None, description="Gene description")
+    synonyms: list[str] = Field(default_factory=list, description="Alternative gene symbols")
 
 
 class DrugNode(BaseModel):
@@ -84,8 +85,8 @@ class DrugNode(BaseModel):
     curie: str = Field(..., description="CURIE (e.g., 'chembl:CHEMBL1')")
     namespace: str = Field(default="chembl", description="Namespace")
     identifier: str = Field(..., description="Identifier")
-    synonyms: List[str] = Field(default_factory=list, description="Alternative names")
-    drug_type: Optional[str] = Field(None, description="Drug type (small molecule, antibody, etc.)")
+    synonyms: list[str] = Field(default_factory=list, description="Alternative names")
+    drug_type: str | None = Field(None, description="Drug type (small molecule, antibody, etc.)")
 
 
 class DiseaseNode(BaseModel):
@@ -95,7 +96,7 @@ class DiseaseNode(BaseModel):
     curie: str = Field(..., description="CURIE")
     namespace: str = Field(default="mondo", description="Namespace")
     identifier: str = Field(..., description="Identifier")
-    description: Optional[str] = Field(None, description="Disease description")
+    description: str | None = Field(None, description="Disease description")
 
 
 class PathwayNode(BaseModel):
@@ -104,9 +105,9 @@ class PathwayNode(BaseModel):
     name: str = Field(..., description="Pathway name")
     curie: str = Field(..., description="CURIE")
     source: str = Field(..., description="Source database (reactome, wikipathways)")
-    description: Optional[str] = Field(None, description="Pathway description")
+    description: str | None = Field(None, description="Pathway description")
     gene_count: int = Field(..., description="Number of genes in pathway")
-    url: Optional[str] = Field(None, description="External URL")
+    url: str | None = Field(None, description="External URL")
 
 
 # ============================================================================
@@ -122,7 +123,7 @@ class PaginatedResponse(BaseModel):
     offset: int = Field(..., description="Current pagination offset")
     limit: int = Field(..., description="Maximum results requested")
     has_more: bool = Field(..., description="Whether more results available")
-    next_offset: Optional[int] = Field(None, description="Offset for next page (if has_more)")
+    next_offset: int | None = Field(None, description="Offset for next page (if has_more)")
 
 
 # ============================================================================
@@ -150,23 +151,23 @@ class GeneFeatureQuery(PaginatedToolInput):
     mode: QueryMode = Field(..., description="Query direction mode")
 
     # Entity fields (depends on mode)
-    gene: Optional[str | Tuple[str, str]] = Field(
+    gene: str | tuple[str, str] | None = Field(
         None,
         description="Gene symbol or (namespace, id) tuple (e.g., 'TP53' or ('hgnc', '11998'))",
     )
-    tissue: Optional[str | Tuple[str, str]] = Field(
+    tissue: str | tuple[str, str] | None = Field(
         None,
         description="Tissue name or CURIE",
     )
-    go_term: Optional[str | Tuple[str, str]] = Field(
+    go_term: str | tuple[str, str] | None = Field(
         None,
         description="GO term name or CURIE (e.g., 'GO:0006915' or 'apoptosis')",
     )
-    domain: Optional[str | Tuple[str, str]] = Field(
+    domain: str | tuple[str, str] | None = Field(
         None,
         description="Protein domain name or identifier",
     )
-    phenotype: Optional[str | Tuple[str, str]] = Field(
+    phenotype: str | tuple[str, str] | None = Field(
         None,
         description="Phenotype term or CURIE",
     )
@@ -207,7 +208,7 @@ class GeneFeatureQuery(PaginatedToolInput):
 
     @field_validator("gene", "tissue", "go_term", "domain", "phenotype")
     @classmethod
-    def validate_entity_input(cls, v: Optional[str | Tuple[str, str]]) -> Optional[str | Tuple[str, str]]:
+    def validate_entity_input(cls, v: str | tuple[str, str] | None) -> str | tuple[str, str] | None:
         """Validate entity input format."""
         if v is None:
             return None
@@ -251,15 +252,15 @@ class DiseaseAssociation(BaseModel):
     disease: EntityRef
     score: float = Field(..., ge=0.0, le=1.0, description="Association score (0-1)")
     evidence_count: int = Field(..., description="Number of supporting evidences")
-    sources: List[str] = Field(..., description="Source databases")
+    sources: list[str] = Field(..., description="Source databases")
 
 
 class ProteinDomain(BaseModel):
     """Protein domain information."""
 
     domain: EntityRef
-    start: Optional[int] = Field(None, description="Domain start position")
-    end: Optional[int] = Field(None, description="Domain end position")
+    start: int | None = Field(None, description="Domain start position")
+    end: int | None = Field(None, description="Domain end position")
 
 
 class GeneticVariant(BaseModel):
@@ -270,15 +271,15 @@ class GeneticVariant(BaseModel):
     position: int = Field(..., description="Genomic position")
     ref_allele: str = Field(..., description="Reference allele")
     alt_allele: str = Field(..., description="Alternate allele")
-    p_value: Optional[float] = Field(None, description="GWAS p-value")
-    trait: Optional[str] = Field(None, description="Associated trait/disease")
+    p_value: float | None = Field(None, description="GWAS p-value")
+    trait: str | None = Field(None, description="Associated trait/disease")
 
 
 class PhenotypeAssociation(BaseModel):
     """Gene-phenotype association."""
 
     phenotype: EntityRef
-    frequency: Optional[str] = Field(None, description="Phenotype frequency")
+    frequency: str | None = Field(None, description="Phenotype frequency")
     evidence_count: int = Field(..., description="Number of supporting evidences")
 
 
@@ -311,25 +312,25 @@ class SubnetworkQuery(BaseToolInput):
     mode: SubnetworkMode = Field(..., description="Subnetwork extraction mode")
 
     # Entity specification
-    genes: Optional[List[str]] = Field(
+    genes: list[str] | None = Field(
         None,
         description="List of gene symbols or CURIEs",
     )
-    source_gene: Optional[str] = Field(
+    source_gene: str | None = Field(
         None,
         description="Source gene for source_to_targets mode",
     )
-    target_genes: Optional[List[str]] = Field(
+    target_genes: list[str] | None = Field(
         None,
         description="Target genes for source_to_targets mode",
     )
 
     # Filters
-    tissue_filter: Optional[str] = Field(
+    tissue_filter: str | None = Field(
         None,
         description="Restrict to genes expressed in tissue",
     )
-    go_filter: Optional[str] = Field(
+    go_filter: str | None = Field(
         None,
         description="Restrict to genes with GO term",
     )
@@ -347,7 +348,7 @@ class SubnetworkQuery(BaseToolInput):
     )
 
     # Statement filters
-    statement_types: Optional[List[str]] = Field(
+    statement_types: list[str] | None = Field(
         None,
         description="Filter by statement types (e.g., ['Phosphorylation', 'Activation'])",
     )
@@ -379,12 +380,12 @@ class IndraStatement(BaseModel):
     stmt_type: str = Field(..., description="Statement type (e.g., 'Phosphorylation')")
     subject: EntityRef = Field(..., description="Subject entity")
     object: EntityRef = Field(..., description="Object entity")
-    residue: Optional[str] = Field(None, description="Modified residue (for PTMs)")
-    position: Optional[str] = Field(None, description="Position (for PTMs)")
+    residue: str | None = Field(None, description="Modified residue (for PTMs)")
+    position: str | None = Field(None, description="Position (for PTMs)")
     evidence_count: int = Field(..., description="Number of evidences")
     belief_score: float = Field(..., ge=0.0, le=1.0, description="Belief score (0-1)")
-    sources: List[str] = Field(..., description="Source databases")
-    evidence: Optional[List[Dict[str, Any]]] = Field(
+    sources: list[str] = Field(..., description="Source databases")
+    evidence: list[dict[str, Any]] | None = Field(
         None,
         description="Evidence snippets (if include_evidence=True)",
     )
@@ -395,7 +396,7 @@ class NetworkStatistics(BaseModel):
 
     node_count: int = Field(..., description="Number of nodes")
     edge_count: int = Field(..., description="Number of edges")
-    statement_types: Dict[str, int] = Field(..., description="Counts by statement type")
+    statement_types: dict[str, int] = Field(..., description="Counts by statement type")
     avg_evidence_per_statement: float = Field(..., description="Average evidence count")
     avg_belief_score: float = Field(..., description="Average belief score")
 
@@ -431,17 +432,17 @@ class EnrichmentQuery(BaseToolInput):
     analysis_type: EnrichmentType = Field(..., description="Analysis type")
 
     # For discrete enrichment
-    gene_list: Optional[List[str]] = Field(
+    gene_list: list[str] | None = Field(
         None,
         description="List of genes for discrete analysis",
     )
-    background_genes: Optional[List[str]] = Field(
+    background_genes: list[str] | None = Field(
         None,
         description="Background gene set (optional)",
     )
 
     # For continuous/signed enrichment
-    ranked_genes: Optional[Dict[str, float]] = Field(
+    ranked_genes: dict[str, float] | None = Field(
         None,
         description="Gene → score mapping for continuous analysis (e.g., log fold change)",
     )
@@ -495,15 +496,15 @@ class EnrichmentResult(BaseModel):
     term_name: str = Field(..., description="Human-readable term name")
     p_value: float = Field(..., description="Raw p-value")
     adjusted_p_value: float = Field(..., description="Adjusted p-value")
-    enrichment_score: Optional[float] = Field(None, description="Enrichment score (GSEA)")
-    normalized_enrichment_score: Optional[float] = Field(
+    enrichment_score: float | None = Field(None, description="Enrichment score (GSEA)")
+    normalized_enrichment_score: float | None = Field(
         None,
         description="Normalized enrichment score (GSEA)",
     )
     gene_count: int = Field(..., description="Genes in query overlapping term")
     term_size: int = Field(..., description="Total genes in term")
-    genes: List[str] = Field(..., description="Overlapping genes")
-    background_count: Optional[int] = Field(None, description="Background gene count")
+    genes: list[str] = Field(..., description="Overlapping genes")
+    background_count: int | None = Field(None, description="Background gene count")
 
 
 class EnrichmentStatistics(BaseModel):
@@ -534,11 +535,11 @@ class DrugEffectQuery(PaginatedToolInput):
     mode: DrugQueryMode = Field(..., description="Query mode")
 
     # Entity fields
-    drug: Optional[str | Tuple[str, str]] = Field(
+    drug: str | tuple[str, str] | None = Field(
         None,
         description="Drug name or (namespace, id) tuple (e.g., 'aspirin' or ('chembl', 'CHEMBL25'))",
     )
-    side_effect: Optional[str | Tuple[str, str]] = Field(
+    side_effect: str | tuple[str, str] | None = Field(
         None,
         description="Side effect term or (namespace, id) tuple",
     )
@@ -552,7 +553,7 @@ class DrugEffectQuery(PaginatedToolInput):
 
     @field_validator("drug", "side_effect")
     @classmethod
-    def validate_entity_input(cls, v: Optional[str | Tuple[str, str]]) -> Optional[str | Tuple[str, str]]:
+    def validate_entity_input(cls, v: str | tuple[str, str] | None) -> str | tuple[str, str] | None:
         """Validate entity input format."""
         if v is None:
             return None
@@ -568,7 +569,7 @@ class DrugTarget(BaseModel):
     """Drug target information."""
 
     target: EntityRef
-    action_type: Optional[str] = Field(None, description="Action type (INHIBITOR, AGONIST, etc.)")
+    action_type: str | None = Field(None, description="Action type (INHIBITOR, AGONIST, etc.)")
     evidence_count: int = Field(..., description="Number of supporting evidences")
 
 
@@ -577,14 +578,14 @@ class DrugIndication(BaseModel):
 
     disease: EntityRef
     indication_type: str = Field(..., description="Indication type")
-    max_phase: Optional[int] = Field(None, description="Max clinical trial phase (1-4)")
+    max_phase: int | None = Field(None, description="Max clinical trial phase (1-4)")
 
 
 class SideEffect(BaseModel):
     """Drug side effect."""
 
     effect: EntityRef
-    frequency: Optional[str] = Field(None, description="Frequency category (common, rare, etc.)")
+    frequency: str | None = Field(None, description="Frequency category (common, rare, etc.)")
 
 
 class ClinicalTrial(BaseModel):
@@ -592,10 +593,10 @@ class ClinicalTrial(BaseModel):
 
     nct_id: str = Field(..., description="ClinicalTrials.gov NCT ID")
     title: str = Field(..., description="Trial title")
-    phase: Optional[int] = Field(None, description="Trial phase (1-4)")
+    phase: int | None = Field(None, description="Trial phase (1-4)")
     status: str = Field(..., description="Trial status (recruiting, completed, etc.)")
-    conditions: List[str] = Field(default_factory=list, description="Conditions studied")
-    interventions: List[str] = Field(default_factory=list, description="Interventions")
+    conditions: list[str] = Field(default_factory=list, description="Conditions studied")
+    interventions: list[str] = Field(default_factory=list, description="Interventions")
     url: str = Field(..., description="ClinicalTrials.gov URL")
 
 
@@ -625,11 +626,11 @@ class DiseasePhenotypeQuery(PaginatedToolInput):
     mode: DiseaseQueryMode = Field(..., description="Query mode")
 
     # Entity fields (depends on mode)
-    disease: Optional[str | Tuple[str, str]] = Field(
+    disease: str | tuple[str, str] | None = Field(
         None,
         description="Disease name or CURIE (e.g., 'diabetes' or ('mondo', 'MONDO:0005015'))",
     )
-    phenotype: Optional[str | Tuple[str, str]] = Field(
+    phenotype: str | tuple[str, str] | None = Field(
         None,
         description="Phenotype term or CURIE (e.g., 'HP:0001250' or 'seizures')",
     )
@@ -658,7 +659,7 @@ class DiseasePhenotypeQuery(PaginatedToolInput):
 
     @field_validator("disease", "phenotype")
     @classmethod
-    def validate_entity_input(cls, v: Optional[str | Tuple[str, str]]) -> Optional[str | Tuple[str, str]]:
+    def validate_entity_input(cls, v: str | tuple[str, str] | None) -> str | tuple[str, str] | None:
         """Validate entity input format."""
         if v is None:
             return None
@@ -676,7 +677,7 @@ class GeneAssociation(BaseModel):
     gene: EntityRef
     score: float = Field(..., ge=0.0, le=1.0, description="Association score (0-1)")
     evidence_count: int = Field(..., description="Number of supporting evidences")
-    sources: List[str] = Field(..., description="Source databases")
+    sources: list[str] = Field(..., description="Source databases")
 
 
 class VariantAssociation(BaseModel):
@@ -684,9 +685,9 @@ class VariantAssociation(BaseModel):
 
     variant: str = Field(..., description="Variant rsID (e.g., 'rs7412')")
     gene: EntityRef = Field(..., description="Gene containing variant")
-    p_value: Optional[float] = Field(None, description="GWAS p-value")
-    odds_ratio: Optional[float] = Field(None, description="Odds ratio")
-    trait: Optional[str] = Field(None, description="Associated trait/phenotype")
+    p_value: float | None = Field(None, description="GWAS p-value")
+    odds_ratio: float | None = Field(None, description="Odds ratio")
+    trait: str | None = Field(None, description="Associated trait/phenotype")
 
 
 class DrugTherapy(BaseModel):
@@ -694,8 +695,8 @@ class DrugTherapy(BaseModel):
 
     drug: EntityRef
     indication_type: str = Field(..., description="Indication type")
-    max_phase: Optional[int] = Field(None, description="Maximum clinical trial phase (1-4)")
-    status: Optional[str] = Field(None, description="Development status")
+    max_phase: int | None = Field(None, description="Maximum clinical trial phase (1-4)")
+    status: str | None = Field(None, description="Development status")
 
 
 # Note: ClinicalTrial schema is defined in Tool 4 section above
@@ -722,28 +723,28 @@ class PathwayQuery(PaginatedToolInput):
     mode: PathwayQueryMode = Field(..., description="Query mode")
 
     # Entity fields (depends on mode)
-    pathway: Optional[str | Tuple[str, str]] = Field(
+    pathway: str | tuple[str, str] | None = Field(
         None,
         description="Pathway name or CURIE (e.g., 'MAPK signaling' or ('reactome', 'R-HSA-5683057'))",
     )
-    gene: Optional[str | Tuple[str, str]] = Field(
+    gene: str | tuple[str, str] | None = Field(
         None,
         description="Gene symbol or CURIE",
     )
-    genes: Optional[List[str]] = Field(
+    genes: list[str] | None = Field(
         None,
         description="List of genes for find_shared mode",
     )
 
     # Filters
-    pathway_source: Optional[str] = Field(
+    pathway_source: str | None = Field(
         None,
         description="Filter by pathway source (reactome, wikipathways)",
     )
 
     @field_validator("pathway", "gene")
     @classmethod
-    def validate_entity_input(cls, v: Optional[str | Tuple[str, str]]) -> Optional[str | Tuple[str, str]]:
+    def validate_entity_input(cls, v: str | tuple[str, str] | None) -> str | tuple[str, str] | None:
         """Validate entity input format."""
         if v is None:
             return None
@@ -775,11 +776,11 @@ class CellLineQuery(PaginatedToolInput):
     mode: CellLineQueryMode = Field(..., description="Query mode")
 
     # Entity fields
-    cell_line: Optional[str] = Field(
+    cell_line: str | None = Field(
         None,
         description="Cell line name (e.g., 'A549', 'HeLa')",
     )
-    gene: Optional[str | Tuple[str, str]] = Field(
+    gene: str | tuple[str, str] | None = Field(
         None,
         description="Gene symbol or CURIE",
     )
@@ -792,7 +793,7 @@ class CellLineQuery(PaginatedToolInput):
 
     @field_validator("gene")
     @classmethod
-    def validate_entity_input(cls, v: Optional[str | Tuple[str, str]]) -> Optional[str | Tuple[str, str]]:
+    def validate_entity_input(cls, v: str | tuple[str, str] | None) -> str | tuple[str, str] | None:
         """Validate entity input format."""
         if v is None:
             return None
@@ -810,8 +811,8 @@ class CellLineNode(BaseModel):
     name: str = Field(..., description="Cell line name")
     ccle_id: str = Field(..., description="CCLE identifier")
     depmap_id: str = Field(..., description="DepMap identifier")
-    tissue: Optional[str] = Field(None, description="Tissue of origin")
-    disease: Optional[str] = Field(None, description="Disease type")
+    tissue: str | None = Field(None, description="Tissue of origin")
+    disease: str | None = Field(None, description="Disease type")
 
 
 class GeneMutation(BaseModel):
@@ -819,7 +820,7 @@ class GeneMutation(BaseModel):
 
     gene: EntityRef
     mutation_type: str = Field(..., description="Mutation type (missense, nonsense, etc.)")
-    protein_change: Optional[str] = Field(None, description="Protein change notation")
+    protein_change: str | None = Field(None, description="Protein change notation")
     is_driver: bool = Field(..., description="Is this a driver mutation?")
 
 
@@ -836,7 +837,7 @@ class GeneDependency(BaseModel):
 
     gene: EntityRef
     dependency_score: float = Field(..., description="Dependency score (lower = more essential)")
-    percentile: Optional[float] = Field(None, description="Percentile rank")
+    percentile: float | None = Field(None, description="Percentile rank")
 
 
 class GeneExpression(BaseModel):
@@ -866,32 +867,32 @@ class ClinicalTrialsQuery(PaginatedToolInput):
     mode: ClinicalTrialsMode = Field(..., description="Query mode")
 
     # Entity fields (depends on mode)
-    drug: Optional[str | Tuple[str, str]] = Field(
+    drug: str | tuple[str, str] | None = Field(
         None,
         description="Drug name or CURIE (e.g., 'pembrolizumab' or ('chembl', 'CHEMBL1201585'))",
     )
-    disease: Optional[str | Tuple[str, str]] = Field(
+    disease: str | tuple[str, str] | None = Field(
         None,
         description="Disease name or CURIE (e.g., 'diabetes' or ('mondo', 'MONDO:0005015'))",
     )
-    trial_id: Optional[str] = Field(
+    trial_id: str | None = Field(
         None,
         description="NCT ID (e.g., 'NCT12345678')",
     )
 
     # Filters
-    phase: Optional[List[int]] = Field(
+    phase: list[int] | None = Field(
         None,
         description="Filter by trial phase (1, 2, 3, 4)",
     )
-    status: Optional[str] = Field(
+    status: str | None = Field(
         None,
         description="Filter by status (recruiting, completed, terminated, etc.)",
     )
 
     @field_validator("trial_id")
     @classmethod
-    def validate_nct_id(cls, v: Optional[str]) -> Optional[str]:
+    def validate_nct_id(cls, v: str | None) -> str | None:
         """Validate NCT ID format."""
         if v is not None and not v.upper().startswith("NCT"):
             raise ValueError("Trial ID must start with 'NCT'")
@@ -899,7 +900,7 @@ class ClinicalTrialsQuery(PaginatedToolInput):
 
     @field_validator("drug", "disease")
     @classmethod
-    def validate_entity_input(cls, v: Optional[str | Tuple[str, str]]) -> Optional[str | Tuple[str, str]]:
+    def validate_entity_input(cls, v: str | tuple[str, str] | None) -> str | tuple[str, str] | None:
         """Validate entity input format."""
         if v is None:
             return None
@@ -931,10 +932,10 @@ class LiteratureQuery(PaginatedToolInput):
     mode: LiteratureQueryMode = Field(..., description="Query mode")
 
     # Entity fields (depends on mode)
-    pmid: Optional[str] = Field(None, description="PubMed ID (e.g., '12345678')")
-    statement_hash: Optional[str] = Field(None, description="INDRA statement hash")
-    mesh_terms: Optional[List[str]] = Field(None, description="MeSH terms for search")
-    statement_hashes: Optional[List[str]] = Field(None, description="List of statement hashes")
+    pmid: str | None = Field(None, description="PubMed ID (e.g., '12345678')")
+    statement_hash: str | None = Field(None, description="INDRA statement hash")
+    mesh_terms: list[str] | None = Field(None, description="MeSH terms for search")
+    statement_hashes: list[str] | None = Field(None, description="List of statement hashes")
 
     # Options
     include_evidence_text: bool = Field(
@@ -954,11 +955,11 @@ class Publication(BaseModel):
 
     pmid: str = Field(..., description="PubMed ID")
     title: str
-    authors: List[str] = Field(default_factory=list)
+    authors: list[str] = Field(default_factory=list)
     journal: str
     year: int
-    abstract: Optional[str] = None
-    mesh_terms: List[str] = Field(default_factory=list)
+    abstract: str | None = None
+    mesh_terms: list[str] = Field(default_factory=list)
     url: str = Field(..., description="PubMed URL")
 
 
@@ -966,9 +967,9 @@ class Evidence(BaseModel):
     """INDRA evidence snippet."""
 
     text: str = Field(..., description="Evidence text")
-    pmid: Optional[str] = Field(None, description="PubMed ID")
+    pmid: str | None = Field(None, description="PubMed ID")
     source_api: str = Field(..., description="Source API (reach, sparser, etc.)")
-    annotations: Optional[Dict[str, Any]] = Field(None, description="Additional annotations")
+    annotations: dict[str, Any] | None = Field(None, description="Additional annotations")
 
 
 # Note: IndraStatement schema already exists in Tool 2 section (lines 375-391)
@@ -1000,25 +1001,25 @@ class VariantQuery(PaginatedToolInput):
     mode: VariantQueryMode = Field(..., description="Query mode")
 
     # Entity fields (depends on mode)
-    gene: Optional[str | Tuple[str, str]] = Field(
+    gene: str | tuple[str, str] | None = Field(
         None,
         description="Gene symbol or CURIE",
     )
-    disease: Optional[str | Tuple[str, str]] = Field(
+    disease: str | tuple[str, str] | None = Field(
         None,
         description="Disease name or CURIE",
     )
-    phenotype: Optional[str | Tuple[str, str]] = Field(
+    phenotype: str | tuple[str, str] | None = Field(
         None,
         description="Phenotype term or CURIE",
     )
-    variant: Optional[str] = Field(
+    variant: str | None = Field(
         None,
         description="Variant rsID (e.g., 'rs7412')",
     )
 
     # Filters
-    min_p_value: Optional[float] = Field(
+    min_p_value: float | None = Field(
         None,
         ge=0.0,
         le=1.0,
@@ -1030,14 +1031,14 @@ class VariantQuery(PaginatedToolInput):
         le=1.0,
         description="Maximum p-value threshold",
     )
-    source: Optional[str] = Field(
+    source: str | None = Field(
         None,
         description="Data source (gwas_catalog, disgenet)",
     )
 
     @field_validator("variant")
     @classmethod
-    def validate_rsid(cls, v: Optional[str]) -> Optional[str]:
+    def validate_rsid(cls, v: str | None) -> str | None:
         """Validate variant rsID format."""
         if v is not None and not v.startswith("rs"):
             raise ValueError("Variant ID must be an rsID starting with 'rs'")
@@ -1045,7 +1046,7 @@ class VariantQuery(PaginatedToolInput):
 
     @field_validator("gene", "disease", "phenotype")
     @classmethod
-    def validate_entity_input(cls, v: Optional[str | Tuple[str, str]]) -> Optional[str | Tuple[str, str]]:
+    def validate_entity_input(cls, v: str | tuple[str, str] | None) -> str | tuple[str, str] | None:
         """Validate entity input format."""
         if v is None:
             return None
@@ -1069,7 +1070,7 @@ class VariantQuery(PaginatedToolInput):
 class IdentifierQuery(BaseToolInput):
     """Input for cogex_resolve_identifiers tool."""
 
-    identifiers: List[str] = Field(
+    identifiers: list[str] = Field(
         ...,
         min_length=1,
         description="List of identifiers to convert (e.g., ['TP53', 'BRCA1'])",
@@ -1092,8 +1093,8 @@ class IdentifierMapping(BaseModel):
     """Single identifier mapping result."""
 
     source_id: str = Field(..., description="Source identifier")
-    target_ids: List[str] = Field(..., description="Target identifier(s) (1:many supported)")
-    confidence: Optional[str] = Field(None, description="Mapping confidence (exact, inferred, etc.)")
+    target_ids: list[str] = Field(..., description="Target identifier(s) (1:many supported)")
+    confidence: str | None = Field(None, description="Mapping confidence (exact, inferred, etc.)")
 
 
 # ============================================================================
@@ -1115,17 +1116,17 @@ class CellMarkerQuery(PaginatedToolInput):
     mode: CellMarkerMode = Field(..., description="Query mode")
 
     # Entity fields (depends on mode)
-    cell_type: Optional[str] = Field(
+    cell_type: str | None = Field(
         None,
         description="Cell type name (e.g., 'T cell', 'NK cell')",
     )
-    marker: Optional[str | Tuple[str, str]] = Field(
+    marker: str | tuple[str, str] | None = Field(
         None,
         description="Marker gene symbol or CURIE (e.g., 'CD4' or ('hgnc', '1678'))",
     )
 
     # Filters
-    tissue: Optional[str] = Field(
+    tissue: str | None = Field(
         None,
         description="Filter by tissue (e.g., 'blood', 'brain')",
     )
@@ -1136,7 +1137,7 @@ class CellMarkerQuery(PaginatedToolInput):
 
     @field_validator("marker")
     @classmethod
-    def validate_entity_input(cls, v: Optional[str | Tuple[str, str]]) -> Optional[str | Tuple[str, str]]:
+    def validate_entity_input(cls, v: str | tuple[str, str] | None) -> str | tuple[str, str] | None:
         """Validate entity input format."""
         if v is None:
             return None
@@ -1190,19 +1191,19 @@ class RelationshipQuery(BaseToolInput):
 
     relationship_type: RelationshipType = Field(..., description="Type of relationship to check")
 
-    entity1: str | Tuple[str, str] = Field(
+    entity1: str | tuple[str, str] = Field(
         ...,
         description="First entity (gene/drug/disease/etc.) as name or (namespace, id) tuple",
     )
 
-    entity2: str | Tuple[str, str] = Field(
+    entity2: str | tuple[str, str] = Field(
         ...,
         description="Second entity (pathway/target/phenotype/etc.) as name or (namespace, id) tuple",
     )
 
     @field_validator("entity1", "entity2")
     @classmethod
-    def validate_entity_input(cls, v: str | Tuple[str, str]) -> str | Tuple[str, str]:
+    def validate_entity_input(cls, v: str | tuple[str, str]) -> str | tuple[str, str]:
         """Validate entity input format."""
         if isinstance(v, tuple):
             if len(v) != 2:
@@ -1215,17 +1216,19 @@ class RelationshipQuery(BaseToolInput):
 class RelationshipMetadata(BaseModel):
     """Metadata about a relationship check."""
 
-    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score (0-1)")
-    evidence_count: Optional[int] = Field(None, description="Number of supporting evidences")
-    sources: Optional[List[str]] = Field(None, description="Source databases")
-    additional_info: Optional[Dict[str, Any]] = Field(None, description="Type-specific metadata")
+    confidence: float | None = Field(None, ge=0.0, le=1.0, description="Confidence score (0-1)")
+    evidence_count: int | None = Field(None, description="Number of supporting evidences")
+    sources: list[str] | None = Field(None, description="Source databases")
+    additional_info: dict[str, Any] | None = Field(None, description="Type-specific metadata")
 
 
 class RelationshipResponse(BaseModel):
     """Response from relationship check."""
 
     exists: bool = Field(..., description="Whether the relationship exists")
-    metadata: Optional[RelationshipMetadata] = Field(None, description="Additional relationship metadata")
+    metadata: RelationshipMetadata | None = Field(
+        None, description="Additional relationship metadata"
+    )
 
 
 # ============================================================================
@@ -1244,7 +1247,7 @@ class HierarchyDirection(str, Enum):
 class OntologyHierarchyQuery(BaseToolInput):
     """Input for cogex_get_ontology_hierarchy tool."""
 
-    term: str | Tuple[str, str] = Field(
+    term: str | tuple[str, str] = Field(
         ...,
         description="Ontology term (GO, HPO, MONDO, etc.) as name, CURIE, or (namespace, id) tuple",
     )
@@ -1263,7 +1266,7 @@ class OntologyHierarchyQuery(BaseToolInput):
 
     @field_validator("term")
     @classmethod
-    def validate_term_input(cls, v: str | Tuple[str, str]) -> str | Tuple[str, str]:
+    def validate_term_input(cls, v: str | tuple[str, str]) -> str | tuple[str, str]:
         """Validate term input format."""
         if isinstance(v, tuple):
             if len(v) != 2:
@@ -1279,9 +1282,9 @@ class OntologyTerm(BaseModel):
     name: str = Field(..., description="Term name (e.g., 'apoptotic process')")
     curie: str = Field(..., description="CURIE (e.g., 'GO:0006915')")
     namespace: str = Field(..., description="Ontology namespace (go, hpo, mondo, etc.)")
-    definition: Optional[str] = Field(None, description="Term definition/description")
+    definition: str | None = Field(None, description="Term definition/description")
     depth: int = Field(..., description="Distance from root term in hierarchy traversal")
-    relationship: Optional[str] = Field(
+    relationship: str | None = Field(
         None,
         description="Relationship type to parent/child (is_a, part_of, etc.)",
     )
@@ -1307,28 +1310,28 @@ class ProteinFunctionQuery(PaginatedToolInput):
     mode: ProteinFunctionMode = Field(..., description="Query mode")
 
     # Entity fields (depends on mode)
-    gene: Optional[str | Tuple[str, str]] = Field(
+    gene: str | tuple[str, str] | None = Field(
         None,
         description="Gene symbol or CURIE for gene_to_activities and check_activity modes",
     )
-    genes: Optional[List[str]] = Field(
+    genes: list[str] | None = Field(
         None,
         description="List of genes for batch check_function_types mode",
     )
-    enzyme_activity: Optional[str] = Field(
+    enzyme_activity: str | None = Field(
         None,
         description="Enzyme activity name for activity_to_genes and check_activity modes",
     )
 
     # For check_function_types
-    function_types: Optional[List[str]] = Field(
+    function_types: list[str] | None = Field(
         None,
         description="Function types to check: kinase, phosphatase, transcription_factor",
     )
 
     @field_validator("gene")
     @classmethod
-    def validate_entity_input(cls, v: Optional[str | Tuple[str, str]]) -> Optional[str | Tuple[str, str]]:
+    def validate_entity_input(cls, v: str | tuple[str, str] | None) -> str | tuple[str, str] | None:
         """Validate entity input format."""
         if v is None:
             return None
@@ -1344,6 +1347,6 @@ class EnzymeActivity(BaseModel):
     """Enzyme activity information."""
 
     activity: str = Field(..., description="Activity name (e.g., 'kinase', 'phosphorylation')")
-    ec_number: Optional[str] = Field(None, description="EC number (e.g., 'EC:2.7.11.1')")
+    ec_number: str | None = Field(None, description="EC number (e.g., 'EC:2.7.11.1')")
     confidence: str = Field(..., description="Confidence level (high, medium, low)")
-    evidence_sources: List[str] = Field(..., description="Evidence source databases")
+    evidence_sources: list[str] = Field(..., description="Evidence source databases")

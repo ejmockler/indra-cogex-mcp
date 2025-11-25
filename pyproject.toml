@@ -71,6 +71,8 @@ where = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
@@ -82,10 +84,12 @@ select = [
 ]
 ignore = [
     "E501",  # line too long (handled by formatter)
+    "B904",  # Within except, use raise from - we deliberately wrap exceptions
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Allow unused imports in __init__
+"src/cogex_mcp/server.py" = ["F401"]  # Tool imports are for side-effects (registration)
 
 [tool.mypy]
 python_version = "3.10"

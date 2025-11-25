@@ -11,28 +11,27 @@ Analysis Types:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
+from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    ENRICHMENT_TIMEOUT,
+    STATISTICAL_ANNOTATIONS,
+)
 from cogex_mcp.schemas import (
     EnrichmentQuery,
-    EnrichmentType,
-    EnrichmentSource,
     EnrichmentResult,
+    EnrichmentSource,
     EnrichmentStatistics,
+    EnrichmentType,
     EntityRef,
 )
-from cogex_mcp.constants import (
-    STATISTICAL_ANNOTATIONS,
-    ResponseFormat,
-    ENRICHMENT_TIMEOUT,
-    CHARACTER_LIMIT,
-)
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +236,7 @@ async def cogex_enrichment_analysis(
 async def _analyze_discrete(
     params: EnrichmentQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: discrete
     Overrepresentation analysis using Fisher's exact test.
@@ -261,9 +260,7 @@ async def _analyze_discrete(
             failed_genes.append(gene)
 
     if not resolved_genes:
-        raise ValueError(
-            f"No genes could be resolved. Failed: {', '.join(failed_genes)}"
-        )
+        raise ValueError(f"No genes could be resolved. Failed: {', '.join(failed_genes)}")
 
     if failed_genes:
         logger.info(
@@ -286,9 +283,7 @@ async def _analyze_discrete(
                 pass
         background_gene_ids = [g.curie for g in background_resolved]
 
-    await ctx.report_progress(
-        0.4, f"Running discrete enrichment ({params.source.value})..."
-    )
+    await ctx.report_progress(0.4, f"Running discrete enrichment ({params.source.value})...")
 
     # Query backend
     adapter = await get_adapter()
@@ -329,7 +324,7 @@ async def _analyze_discrete(
 async def _analyze_continuous(
     params: EnrichmentQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: continuous
     Gene Set Enrichment Analysis (GSEA) with ranked gene list.
@@ -337,13 +332,11 @@ async def _analyze_continuous(
     if not params.ranked_genes:
         raise ValueError("ranked_genes parameter required for continuous analysis")
 
-    await ctx.report_progress(
-        0.2, f"Resolving {len(params.ranked_genes)} ranked genes..."
-    )
+    await ctx.report_progress(0.2, f"Resolving {len(params.ranked_genes)} ranked genes...")
 
     # Resolve gene identifiers and preserve scores
     resolver = get_resolver()
-    resolved_ranking: Dict[str, float] = {}
+    resolved_ranking: dict[str, float] = {}
     failed_genes = []
 
     for gene, score in params.ranked_genes.items():
@@ -355,9 +348,7 @@ async def _analyze_continuous(
             failed_genes.append(gene)
 
     if not resolved_ranking:
-        raise ValueError(
-            f"No genes could be resolved. Failed: {', '.join(failed_genes)}"
-        )
+        raise ValueError(f"No genes could be resolved. Failed: {', '.join(failed_genes)}")
 
     await ctx.report_progress(
         0.4,
@@ -401,7 +392,7 @@ async def _analyze_continuous(
 async def _analyze_signed(
     params: EnrichmentQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: signed
     Directional enrichment analysis (separate up/down regulation).
@@ -409,13 +400,11 @@ async def _analyze_signed(
     if not params.ranked_genes:
         raise ValueError("ranked_genes parameter required for signed analysis")
 
-    await ctx.report_progress(
-        0.2, f"Resolving {len(params.ranked_genes)} ranked genes..."
-    )
+    await ctx.report_progress(0.2, f"Resolving {len(params.ranked_genes)} ranked genes...")
 
     # Resolve gene identifiers and preserve signed scores
     resolver = get_resolver()
-    resolved_ranking: Dict[str, float] = {}
+    resolved_ranking: dict[str, float] = {}
     failed_genes = []
 
     for gene, score in params.ranked_genes.items():
@@ -427,9 +416,7 @@ async def _analyze_signed(
             failed_genes.append(gene)
 
     if not resolved_ranking:
-        raise ValueError(
-            f"No genes could be resolved. Failed: {', '.join(failed_genes)}"
-        )
+        raise ValueError(f"No genes could be resolved. Failed: {', '.join(failed_genes)}")
 
     # Count up/down regulated genes
     upregulated = sum(1 for score in resolved_ranking.values() if score > 0)
@@ -479,7 +466,7 @@ async def _analyze_signed(
 async def _analyze_metabolite(
     params: EnrichmentQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: metabolite
     Metabolite set enrichment analysis.
@@ -487,9 +474,7 @@ async def _analyze_metabolite(
     if not params.gene_list:
         raise ValueError("gene_list parameter required for metabolite analysis")
 
-    await ctx.report_progress(
-        0.2, f"Validating {len(params.gene_list)} metabolite identifiers..."
-    )
+    await ctx.report_progress(0.2, f"Validating {len(params.gene_list)} metabolite identifiers...")
 
     # For metabolite analysis, we don't resolve through gene resolver
     # Metabolites have their own identifier format (e.g., HMDB, ChEBI)
@@ -499,9 +484,7 @@ async def _analyze_metabolite(
     # Optionally resolve background metabolites
     background_metabolite_ids = params.background_genes if params.background_genes else None
 
-    await ctx.report_progress(
-        0.4, f"Running metabolite enrichment ({params.source.value})..."
-    )
+    await ctx.report_progress(0.4, f"Running metabolite enrichment ({params.source.value})...")
 
     # Query backend
     adapter = await get_adapter()
@@ -518,9 +501,7 @@ async def _analyze_metabolite(
     if background_metabolite_ids:
         query_params["background_metabolite_ids"] = background_metabolite_ids
 
-    enrichment_data = await adapter.query(
-        "metabolite_discrete_analysis", **query_params
-    )
+    enrichment_data = await adapter.query("metabolite_discrete_analysis", **query_params)
 
     await ctx.report_progress(0.8, "Processing metabolite enrichment results...")
 
@@ -541,9 +522,9 @@ async def _analyze_metabolite(
 
 
 def _parse_enrichment_results(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     analysis_type: EnrichmentType,
-) -> List[EnrichmentResult]:
+) -> list[EnrichmentResult]:
     """Parse enrichment results from backend response."""
     if not data.get("success") or not data.get("results"):
         return []
@@ -573,9 +554,7 @@ def _parse_enrichment_results(
         # Add GSEA-specific fields for continuous/signed analysis
         if analysis_type in [EnrichmentType.CONTINUOUS, EnrichmentType.SIGNED]:
             result_dict["enrichment_score"] = record.get("enrichment_score")
-            result_dict["normalized_enrichment_score"] = record.get(
-                "normalized_enrichment_score"
-            )
+            result_dict["normalized_enrichment_score"] = record.get("normalized_enrichment_score")
 
         results.append(EnrichmentResult(**result_dict))
 
@@ -583,15 +562,13 @@ def _parse_enrichment_results(
 
 
 def _compute_enrichment_stats(
-    results: List[EnrichmentResult],
+    results: list[EnrichmentResult],
     params: EnrichmentQuery,
     total_genes: int,
 ) -> EnrichmentStatistics:
     """Compute overall enrichment statistics."""
     # Count significant results
-    significant_results = sum(
-        1 for r in results if r.adjusted_p_value <= params.alpha
-    )
+    significant_results = sum(1 for r in results if r.adjusted_p_value <= params.alpha)
 
     return EnrichmentStatistics(
         total_results=len(results),

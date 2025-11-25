@@ -25,7 +25,7 @@ def count_test_methods(file_path: Path) -> int:
     if not file_path.exists():
         return 0
 
-    with open(file_path, "r") as f:
+    with open(file_path) as f:
         content = f.read()
         return content.count("async def test_")
 
@@ -43,15 +43,9 @@ def main():
     # Check core files
     print("Core Files:")
     print("-" * 80)
-    checks_passed.append(
-        check_file_exists(base_dir / "__init__.py", "Module init")
-    )
-    checks_passed.append(
-        check_file_exists(base_dir / "conftest.py", "Test fixtures")
-    )
-    checks_passed.append(
-        check_file_exists(base_dir / "profiler.py", "Profiler utilities")
-    )
+    checks_passed.append(check_file_exists(base_dir / "__init__.py", "Module init"))
+    checks_passed.append(check_file_exists(base_dir / "conftest.py", "Test fixtures"))
+    checks_passed.append(check_file_exists(base_dir / "profiler.py", "Profiler utilities"))
     print()
 
     # Check test files
@@ -81,9 +75,7 @@ def main():
     # Check documentation
     print("Documentation:")
     print("-" * 80)
-    checks_passed.append(
-        check_file_exists(base_dir / "README.md", "Framework README")
-    )
+    checks_passed.append(check_file_exists(base_dir / "README.md", "Framework README"))
     checks_passed.append(
         check_file_exists(base_dir / "PERFORMANCE_SUMMARY.md", "Performance summary")
     )
@@ -114,7 +106,7 @@ def main():
     else:
         print(f"✗ Reports directory: {reports_dir} MISSING")
         reports_dir.mkdir(parents=True, exist_ok=True)
-        print(f"  → Created reports directory")
+        print("  → Created reports directory")
     print()
 
     # Check dependencies
@@ -122,6 +114,7 @@ def main():
     print("-" * 80)
     try:
         import pytest
+
         print(f"✓ pytest: {pytest.__version__}")
     except ImportError:
         print("✗ pytest: NOT INSTALLED")
@@ -129,6 +122,7 @@ def main():
 
     try:
         import pytest_asyncio
+
         print(f"✓ pytest-asyncio: {pytest_asyncio.__version__}")
     except ImportError:
         print("✗ pytest-asyncio: NOT INSTALLED")
@@ -136,6 +130,7 @@ def main():
 
     try:
         import neo4j
+
         print(f"✓ neo4j: {neo4j.__version__}")
     except ImportError:
         print("✗ neo4j: NOT INSTALLED")
@@ -143,6 +138,7 @@ def main():
 
     try:
         import tenacity
+
         print(f"✓ tenacity: {tenacity.__version__}")
     except ImportError:
         print("✗ tenacity: NOT INSTALLED")

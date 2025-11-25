@@ -10,26 +10,24 @@ Modes:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
-from cogex_mcp.schemas import (
-    ClinicalTrialsQuery,
-    ClinicalTrialsMode,
-    ClinicalTrial,
-)
+from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
-    READONLY_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
     CHARACTER_LIMIT,
+    READONLY_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
 )
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.schemas import (
+    ClinicalTrialsMode,
+    ClinicalTrialsQuery,
+)
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +164,7 @@ async def cogex_query_clinical_trials(
 async def _get_trials_for_drug(
     params: ClinicalTrialsQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_for_drug
     Get clinical trials testing a specific drug.
@@ -222,7 +220,7 @@ async def _get_trials_for_drug(
 async def _get_trials_for_disease(
     params: ClinicalTrialsQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_for_disease
     Get clinical trials for a specific disease.
@@ -278,7 +276,7 @@ async def _get_trials_for_disease(
 async def _get_trial_by_id(
     params: ClinicalTrialsQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_by_id
     Get details for a specific clinical trial by NCT ID.
@@ -313,7 +311,7 @@ async def _get_trial_by_id(
 # ============================================================================
 
 
-def _parse_trial_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_trial_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse list of clinical trials from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
@@ -325,7 +323,7 @@ def _parse_trial_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     return trials
 
 
-def _parse_trial(record: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_trial(record: dict[str, Any]) -> dict[str, Any]:
     """
     Parse a single clinical trial record.
 

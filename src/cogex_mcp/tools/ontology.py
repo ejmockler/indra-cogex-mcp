@@ -10,26 +10,24 @@ Modes:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
-from collections import deque
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
+from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    INTERNAL_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
+    ResponseFormat,
+)
 from cogex_mcp.schemas import (
     HierarchyDirection,
     OntologyHierarchyQuery,
-    OntologyTerm,
 )
-from cogex_mcp.constants import (
-    INTERNAL_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
-    CHARACTER_LIMIT,
-)
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +144,7 @@ async def cogex_get_ontology_hierarchy(
 async def _get_ontology_parents(
     params: OntologyHierarchyQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: parents
     Get parent/ancestor terms in ontology.
@@ -188,7 +186,7 @@ async def _get_ontology_parents(
 async def _get_ontology_children(
     params: OntologyHierarchyQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: children
     Get child/descendant terms in ontology.
@@ -230,7 +228,7 @@ async def _get_ontology_children(
 async def _get_ontology_hierarchy(
     params: OntologyHierarchyQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: both
     Get both parents and children in a single query.
@@ -275,21 +273,23 @@ async def _get_ontology_hierarchy(
 # ============================================================================
 
 
-def _parse_ontology_terms(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_ontology_terms(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse ontology terms from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     terms = []
     for record in data["records"]:
-        terms.append({
-            "name": record.get("name", record.get("term", "Unknown")),
-            "curie": record.get("curie", record.get("term_id", "unknown:unknown")),
-            "namespace": record.get("namespace", "unknown"),
-            "definition": record.get("definition"),
-            "depth": record.get("depth", 0),
-            "relationship": record.get("relationship", "is_a"),
-        })
+        terms.append(
+            {
+                "name": record.get("name", record.get("term", "Unknown")),
+                "curie": record.get("curie", record.get("term_id", "unknown:unknown")),
+                "namespace": record.get("namespace", "unknown"),
+                "definition": record.get("definition"),
+                "depth": record.get("depth", 0),
+                "relationship": record.get("relationship", "is_a"),
+            }
+        )
 
     return terms
 
@@ -300,9 +300,9 @@ def _parse_ontology_terms(data: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def _generate_ascii_tree(
-    root_term: Optional[Dict[str, Any]],
-    parents: Optional[List[Dict[str, Any]]],
-    children: Optional[List[Dict[str, Any]]],
+    root_term: dict[str, Any] | None,
+    parents: list[dict[str, Any]] | None,
+    children: list[dict[str, Any]] | None,
     direction: HierarchyDirection,
 ) -> str:
     """

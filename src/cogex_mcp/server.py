@@ -8,19 +8,18 @@ import asyncio
 import logging
 import sys
 from contextlib import asynccontextmanager
-from typing import Any, Dict
 
 from mcp.server.fastmcp import FastMCP
 
+from cogex_mcp.clients.adapter import close_adapter, get_adapter
 from cogex_mcp.config import settings
-from cogex_mcp.clients.adapter import get_adapter, close_adapter
 from cogex_mcp.services.cache import get_cache
 
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    if settings.log_format == 'text'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    if settings.log_format == "text"
     else '{"time":"%(asctime)s","name":"%(name)s","level":"%(levelname)s","message":"%(message)s"}',
     stream=sys.stderr,  # Important: FastMCP uses stdout for protocol, stderr for logs
 )
@@ -42,8 +41,10 @@ async def lifespan():
         dict: Shared state available to all tools via Context
     """
     logger.info("🚀 Starting INDRA CoGEx MCP Server")
-    logger.info(f"Configuration: primary_backend={settings.has_neo4j_config}, "
-                f"fallback={settings.has_rest_fallback}")
+    logger.info(
+        f"Configuration: primary_backend={settings.has_neo4j_config}, "
+        f"fallback={settings.has_rest_fallback}"
+    )
 
     try:
         # Initialize client adapter (Neo4j + REST)
@@ -52,8 +53,10 @@ async def lifespan():
 
         # Initialize cache
         cache = get_cache()
-        logger.info(f"✓ Cache initialized: max_size={cache.max_size}, "
-                   f"ttl={cache.ttl_seconds}s, enabled={cache.enabled}")
+        logger.info(
+            f"✓ Cache initialized: max_size={cache.max_size}, "
+            f"ttl={cache.ttl_seconds}s, enabled={cache.enabled}"
+        )
 
         # Get adapter status
         status = adapter.get_status()
@@ -105,30 +108,36 @@ logger.info(f"FastMCP server '{settings.mcp_server_name}' created")
 
 try:
     # Priority 1: Core Discovery Tools
-    from cogex_mcp.tools import gene_feature  # Tool 1
-    from cogex_mcp.tools import subnetwork  # Tool 2
-    from cogex_mcp.tools import enrichment  # Tool 3
-    from cogex_mcp.tools import drug_effect  # Tool 4
-    from cogex_mcp.tools import disease_phenotype  # Tool 5
+    from cogex_mcp.tools import (
+        disease_phenotype,  # Tool 5
+        drug_effect,  # Tool 4
+        enrichment,  # Tool 3
+        gene_feature,  # Tool 1
+        subnetwork,  # Tool 2
+    )
 
     logger.info("✓ Priority 1 tools imported (Tools 1-5 complete)")
 
     # Priority 2: Specialized Tools
-    from cogex_mcp.tools import pathway  # Tool 6
-    from cogex_mcp.tools import cell_line  # Tool 7
-    from cogex_mcp.tools import clinical_trials  # Tool 8
-    from cogex_mcp.tools import literature  # Tool 9
-    from cogex_mcp.tools import variants  # Tool 10
+    from cogex_mcp.tools import (
+        cell_line,  # Tool 7
+        clinical_trials,  # Tool 8
+        literature,  # Tool 9
+        pathway,  # Tool 6
+        variants,  # Tool 10
+    )
 
     logger.info("✓ Priority 2 tools imported (Tools 6-10 complete)")
 
     # Priority 3: Utilities & Advanced
-    from cogex_mcp.tools import identifier  # Tool 11
-    from cogex_mcp.tools import relationship  # Tool 12
-    from cogex_mcp.tools import ontology  # Tool 13
-    from cogex_mcp.tools import cell_marker  # Tool 14
-    from cogex_mcp.tools import kinase  # Tool 15
-    from cogex_mcp.tools import protein_function  # Tool 16
+    from cogex_mcp.tools import (
+        cell_marker,  # Tool 14
+        identifier,  # Tool 11
+        kinase,  # Tool 15
+        ontology,  # Tool 13
+        protein_function,  # Tool 16
+        relationship,  # Tool 12
+    )
 
     logger.info("✓ Priority 3 tools imported (Tools 11-16 complete)")
     logger.info("✓ All 16 tools active (100% coverage - complete implementation)")
@@ -140,6 +149,7 @@ except ImportError as e:
 # ============================================================================
 # Server Entry Point
 # ============================================================================
+
 
 def main() -> None:
     """

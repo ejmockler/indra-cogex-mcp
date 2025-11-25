@@ -10,7 +10,7 @@ import logging
 import statistics
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class PerformanceProfiler:
     Performance profiling utilities for latency analysis and optimization.
     """
 
-    def __init__(self, reports_dir: Optional[Path] = None):
+    def __init__(self, reports_dir: Path | None = None):
         """
         Initialize performance profiler.
 
@@ -33,7 +33,7 @@ class PerformanceProfiler:
         self.reports_dir.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
-    def calculate_statistics(latencies: List[float]) -> Dict[str, float]:
+    def calculate_statistics(latencies: list[float]) -> dict[str, float]:
         """
         Calculate comprehensive latency statistics.
 
@@ -71,9 +71,7 @@ class PerformanceProfiler:
 
         return stats
 
-    def save_latency_report(
-        self, tool_name: str, mode: str, stats: Dict[str, float]
-    ) -> None:
+    def save_latency_report(self, tool_name: str, mode: str, stats: dict[str, float]) -> None:
         """
         Save latency report to JSON file.
 
@@ -86,7 +84,7 @@ class PerformanceProfiler:
 
         # Load existing report or create new
         if report_file.exists():
-            with open(report_file, "r") as f:
+            with open(report_file) as f:
                 report = json.load(f)
         else:
             report = {
@@ -118,8 +116,8 @@ class PerformanceProfiler:
         concurrent_count: int,
         total_time: float,
         success_rate: float,
-        errors: List[str],
-        additional_metrics: Optional[Dict[str, Any]] = None,
+        errors: list[str],
+        additional_metrics: dict[str, Any] | None = None,
     ) -> None:
         """
         Save concurrency test report.
@@ -136,7 +134,7 @@ class PerformanceProfiler:
 
         # Load existing report or create new
         if report_file.exists():
-            with open(report_file, "r") as f:
+            with open(report_file) as f:
                 report = json.load(f)
         else:
             report = {
@@ -170,8 +168,8 @@ class PerformanceProfiler:
     def save_connection_pool_report(
         self,
         test_name: str,
-        pool_stats: List[Dict[str, Any]],
-        summary: Dict[str, Any],
+        pool_stats: list[dict[str, Any]],
+        summary: dict[str, Any],
     ) -> None:
         """
         Save connection pool efficiency report.
@@ -185,7 +183,7 @@ class PerformanceProfiler:
 
         # Load existing report or create new
         if report_file.exists():
-            with open(report_file, "r") as f:
+            with open(report_file) as f:
                 report = json.load(f)
         else:
             report = {
@@ -209,7 +207,7 @@ class PerformanceProfiler:
 
         logger.info(f"Saved connection pool report: {test_name}")
 
-    def generate_recommendations(self) -> List[str]:
+    def generate_recommendations(self) -> list[str]:
         """
         Generate optimization recommendations based on all reports.
 
@@ -221,7 +219,7 @@ class PerformanceProfiler:
         # Analyze latency report
         latency_file = self.reports_dir / "latency_report.json"
         if latency_file.exists():
-            with open(latency_file, "r") as f:
+            with open(latency_file) as f:
                 latency_report = json.load(f)
 
             # Check for slow queries
@@ -241,7 +239,7 @@ class PerformanceProfiler:
         # Analyze concurrency report
         concurrency_file = self.reports_dir / "concurrency_report.json"
         if concurrency_file.exists():
-            with open(concurrency_file, "r") as f:
+            with open(concurrency_file) as f:
                 concurrency_report = json.load(f)
 
             for test_name, results in concurrency_report.get("tests", {}).items():
@@ -259,7 +257,7 @@ class PerformanceProfiler:
         # Analyze connection pool report
         pool_file = self.reports_dir / "connection_pool_report.json"
         if pool_file.exists():
-            with open(pool_file, "r") as f:
+            with open(pool_file) as f:
                 pool_report = json.load(f)
 
             for test_name, results in pool_report.get("tests", {}).items():
@@ -285,20 +283,21 @@ class PerformanceProfiler:
             )
         else:
             recommendations.insert(
-                0,
-                f"📊 Found {len(recommendations)} optimization opportunities:"
+                0, f"📊 Found {len(recommendations)} optimization opportunities:"
             )
 
         # Add general best practices
-        recommendations.extend([
-            "",
-            "💡 General Best Practices:",
-            "  • Enable caching for frequently queried entities",
-            "  • Monitor circuit breaker activation patterns",
-            "  • Use pagination for large result sets",
-            "  • Implement query result caching for read-heavy workloads",
-            "  • Consider read replicas for Neo4j if query load is high",
-        ])
+        recommendations.extend(
+            [
+                "",
+                "💡 General Best Practices:",
+                "  • Enable caching for frequently queried entities",
+                "  • Monitor circuit breaker activation patterns",
+                "  • Use pagination for large result sets",
+                "  • Implement query result caching for read-heavy workloads",
+                "  • Consider read replicas for Neo4j if query load is high",
+            ]
+        )
 
         return recommendations
 
@@ -326,7 +325,7 @@ class PerformanceProfiler:
         # Latency summary
         latency_file = self.reports_dir / "latency_report.json"
         if latency_file.exists():
-            with open(latency_file, "r") as f:
+            with open(latency_file) as f:
                 latency_report = json.load(f)
 
             print("📊 LATENCY BENCHMARKS")
@@ -344,7 +343,7 @@ class PerformanceProfiler:
         # Concurrency summary
         concurrency_file = self.reports_dir / "concurrency_report.json"
         if concurrency_file.exists():
-            with open(concurrency_file, "r") as f:
+            with open(concurrency_file) as f:
                 concurrency_report = json.load(f)
 
             print("\n\n⚡ CONCURRENCY TESTS")
@@ -360,7 +359,7 @@ class PerformanceProfiler:
         # Connection pool summary
         pool_file = self.reports_dir / "connection_pool_report.json"
         if pool_file.exists():
-            with open(pool_file, "r") as f:
+            with open(pool_file) as f:
                 pool_report = json.load(f)
 
             print("\n\n🔌 CONNECTION POOL EFFICIENCY")

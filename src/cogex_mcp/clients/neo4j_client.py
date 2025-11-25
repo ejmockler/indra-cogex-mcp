@@ -10,17 +10,17 @@ Provides high-performance access to INDRA CoGEx Neo4j database with:
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
 from contextlib import asynccontextmanager
+from typing import Any
 
-from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
-from neo4j.exceptions import ServiceUnavailable, TransientError, Neo4jError
+from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
+from neo4j.exceptions import Neo4jError, ServiceUnavailable, TransientError
 from tenacity import (
+    before_sleep_log,
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
-    before_sleep_log,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ class Neo4jClient:
         self.connection_timeout = connection_timeout
         self.max_connection_lifetime = max_connection_lifetime
 
-        self.driver: Optional[AsyncDriver] = None
+        self.driver: AsyncDriver | None = None
         self._lock = asyncio.Lock()
 
     async def connect(self) -> None:
@@ -140,9 +140,9 @@ class Neo4jClient:
     async def execute_query(
         self,
         query_name: str,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
         **params: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute named query with retry logic.
 
@@ -162,12 +162,12 @@ class Neo4jClient:
             raise RuntimeError("Neo4j client not connected")
 
         # Set default limit if not provided
-        if 'limit' not in params:
-            params['limit'] = 20
+        if "limit" not in params:
+            params["limit"] = 20
 
         # Set default offset if not provided
-        if 'offset' not in params:
-            params['offset'] = 0
+        if "offset" not in params:
+            params["offset"] = 0
 
         # Map query name to Cypher query
         cypher = self._get_cypher_query(query_name)
@@ -186,9 +186,7 @@ class Neo4jClient:
                 # Consume all records
                 records = await result.data()
 
-                logger.debug(
-                    f"Query '{query_name}' returned {len(records)} records"
-                )
+                logger.debug(f"Query '{query_name}' returned {len(records)} records")
 
                 # Parse records to extract namespace from CURIEs
                 parsed_records = self._parse_result(records, query_name)
@@ -207,7 +205,7 @@ class Neo4jClient:
             logger.error(f"Neo4j query '{query_name}' failed: {e}")
             raise
 
-    def _parse_result(self, records: List[Dict[str, Any]], query_name: str) -> List[Dict[str, Any]]:
+    def _parse_result(self, records: list[dict[str, Any]], query_name: str) -> list[dict[str, Any]]:
         """
         Parse Neo4j records to extract namespace from CURIEs and standardize format.
 
@@ -224,14 +222,14 @@ class Neo4jClient:
             parsed_record = dict(record)
 
             # Extract namespace from any CURIE ID fields
-            for key in ['id', 'gene_id', 'tissue_id', 'go_id', 'pathway_id', 'disease_id']:
+            for key in ["id", "gene_id", "tissue_id", "go_id", "pathway_id", "disease_id"]:
                 if key in parsed_record and parsed_record[key]:
                     curie = parsed_record[key]
-                    if isinstance(curie, str) and ':' in curie:
-                        namespace, identifier = curie.split(':', 1)
+                    if isinstance(curie, str) and ":" in curie:
+                        namespace, identifier = curie.split(":", 1)
                         # Add namespace and identifier as separate fields
-                        parsed_record[f'{key}_namespace'] = namespace
-                        parsed_record[f'{key}_identifier'] = identifier
+                        parsed_record[f"{key}_namespace"] = namespace
+                        parsed_record[f"{key}_identifier"] = identifier
 
             parsed_records.append(parsed_record)
 
@@ -396,9 +394,9 @@ class Neo4jClient:
     async def execute_raw_cypher(
         self,
         cypher: str,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
         **params: Any,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Execute raw Cypher query (for advanced use cases).
 
@@ -432,7 +430,7 @@ class Neo4jClient:
         except asyncio.TimeoutError:
             raise Neo4jError(f"Query timeout after {timeout}ms")
 
-    async def get_statistics(self) -> Dict[str, Any]:
+    async def get_statistics(self) -> dict[str, Any]:
         """
         Get database statistics.
 

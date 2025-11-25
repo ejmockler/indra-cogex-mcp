@@ -11,7 +11,6 @@ Options:
 """
 
 import argparse
-import asyncio
 import json
 import logging
 import subprocess
@@ -57,11 +56,13 @@ def run_pytest(test_path: str, markers: str = None, verbose: bool = False) -> in
     if verbose:
         cmd.append("-v")
 
-    cmd.extend([
-        "--log-cli-level=INFO",
-        "--tb=short",
-        "-x",  # Stop on first failure
-    ])
+    cmd.extend(
+        [
+            "--log-cli-level=INFO",
+            "--tb=short",
+            "-x",  # Stop on first failure
+        ]
+    )
 
     logger.info(f"Running: {' '.join(cmd)}")
 
@@ -174,7 +175,7 @@ def main():
     # Print suite results
     print("Test Suite Results:")
     print("-" * 80)
-    for suite_name, result in results.items():
+    for _suite_name, result in results.items():
         status = "✓ PASSED" if result["passed"] else "✗ FAILED"
         print(f"{result['name']:40s} {status}")
     print()

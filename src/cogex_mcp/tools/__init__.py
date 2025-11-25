@@ -9,22 +9,22 @@ MCP Tools for INDRA CoGEx.
 
 # Import implemented tools
 from cogex_mcp.tools import (
-    gene_feature,
-    subnetwork,
-    enrichment,
-    drug_effect,
-    disease_phenotype,
-    pathway,
     cell_line,
-    clinical_trials,
-    literature,
-    variants,
-    identifier,
-    relationship,
-    ontology,
     cell_marker,
+    clinical_trials,
+    disease_phenotype,
+    drug_effect,
+    enrichment,
+    gene_feature,
+    identifier,
     kinase,
+    literature,
+    ontology,
+    pathway,
     protein_function,
+    relationship,
+    subnetwork,
+    variants,
 )
 
 __all__ = [

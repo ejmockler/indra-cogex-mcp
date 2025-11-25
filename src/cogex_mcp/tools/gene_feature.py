@@ -12,34 +12,24 @@ Modes:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
+from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    READONLY_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
+)
 from cogex_mcp.schemas import (
     GeneFeatureQuery,
     QueryMode,
-    GeneNode,
-    ExpressionData,
-    GOAnnotation,
-    PathwayMembership,
-    DiseaseAssociation,
-    ProteinDomain,
-    GeneticVariant,
-    PhenotypeAssociation,
-    EntityRef,
 )
-from cogex_mcp.constants import (
-    READONLY_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
-    CHARACTER_LIMIT,
-)
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +159,7 @@ async def cogex_query_gene_or_feature(
 async def _gene_to_features(
     params: GeneFeatureQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: gene_to_features
     Get comprehensive gene profile with all requested features.
@@ -254,7 +244,7 @@ async def _gene_to_features(
 async def _tissue_to_genes(
     params: GeneFeatureQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: tissue_to_genes
     Find genes expressed in a specific tissue.
@@ -301,7 +291,7 @@ async def _tissue_to_genes(
 async def _go_to_genes(
     params: GeneFeatureQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: go_to_genes
     Find genes annotated with a specific GO term.
@@ -344,7 +334,7 @@ async def _go_to_genes(
 async def _domain_to_genes(
     params: GeneFeatureQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: domain_to_genes
     Find genes containing a specific protein domain.
@@ -373,7 +363,7 @@ async def _domain_to_genes(
 async def _phenotype_to_genes(
     params: GeneFeatureQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: phenotype_to_genes
     Find genes associated with a specific phenotype.
@@ -404,103 +394,113 @@ async def _phenotype_to_genes(
 # ============================================================================
 
 
-def _parse_expression_data(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_expression_data(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse tissue expression data from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     expressions = []
     for record in data["records"]:
-        expressions.append({
-            "tissue": {
-                "name": record.get("tissue", "Unknown"),
-                "curie": record.get("tissue_id", "unknown:unknown"),
-                "namespace": "uberon",  # Common tissue ontology
-                "identifier": record.get("tissue_id", "unknown"),
-            },
-            "confidence": record.get("confidence", "unknown"),
-            "evidence_count": record.get("evidence_count", 0),
-        })
+        expressions.append(
+            {
+                "tissue": {
+                    "name": record.get("tissue", "Unknown"),
+                    "curie": record.get("tissue_id", "unknown:unknown"),
+                    "namespace": "uberon",  # Common tissue ontology
+                    "identifier": record.get("tissue_id", "unknown"),
+                },
+                "confidence": record.get("confidence", "unknown"),
+                "evidence_count": record.get("evidence_count", 0),
+            }
+        )
 
     return expressions
 
 
-def _parse_go_annotations(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_go_annotations(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse GO annotations from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     annotations = []
     for record in data["records"]:
-        annotations.append({
-            "go_term": {
-                "name": record.get("term", "Unknown"),
-                "curie": record.get("go_id", "unknown:unknown"),
-                "namespace": "go",
-                "identifier": record.get("go_id", "unknown"),
-            },
-            "aspect": record.get("aspect", "unknown"),
-            "evidence_code": record.get("evidence_code", "N/A"),
-        })
+        annotations.append(
+            {
+                "go_term": {
+                    "name": record.get("term", "Unknown"),
+                    "curie": record.get("go_id", "unknown:unknown"),
+                    "namespace": "go",
+                    "identifier": record.get("go_id", "unknown"),
+                },
+                "aspect": record.get("aspect", "unknown"),
+                "evidence_code": record.get("evidence_code", "N/A"),
+            }
+        )
 
     return annotations
 
 
-def _parse_pathway_memberships(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_pathway_memberships(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse pathway memberships from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     pathways = []
     for record in data["records"]:
-        pathways.append({
-            "pathway": {
-                "name": record.get("pathway", "Unknown"),
-                "curie": record.get("pathway_id", "unknown:unknown"),
-                "namespace": record.get("source", "unknown"),
-                "identifier": record.get("pathway_id", "unknown"),
-            },
-            "source": record.get("source", "unknown"),
-        })
+        pathways.append(
+            {
+                "pathway": {
+                    "name": record.get("pathway", "Unknown"),
+                    "curie": record.get("pathway_id", "unknown:unknown"),
+                    "namespace": record.get("source", "unknown"),
+                    "identifier": record.get("pathway_id", "unknown"),
+                },
+                "source": record.get("source", "unknown"),
+            }
+        )
 
     return pathways
 
 
-def _parse_disease_associations(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_disease_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse disease associations from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     diseases = []
     for record in data["records"]:
-        diseases.append({
-            "disease": {
-                "name": record.get("disease", "Unknown"),
-                "curie": record.get("disease_id", "unknown:unknown"),
-                "namespace": "mondo",
-                "identifier": record.get("disease_id", "unknown"),
-            },
-            "score": record.get("score", 0.0),
-            "evidence_count": record.get("evidence_count", 0),
-            "sources": record.get("sources", []),
-        })
+        diseases.append(
+            {
+                "disease": {
+                    "name": record.get("disease", "Unknown"),
+                    "curie": record.get("disease_id", "unknown:unknown"),
+                    "namespace": "mondo",
+                    "identifier": record.get("disease_id", "unknown"),
+                },
+                "score": record.get("score", 0.0),
+                "evidence_count": record.get("evidence_count", 0),
+                "sources": record.get("sources", []),
+            }
+        )
 
     return diseases
 
 
-def _parse_gene_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_gene_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse gene list from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     genes = []
     for record in data["records"]:
-        genes.append({
-            "name": record.get("gene", "Unknown"),
-            "curie": record.get("gene_id", "unknown:unknown"),
-            "namespace": "hgnc",
-            "identifier": record.get("gene_id", "unknown"),
-        })
+        genes.append(
+            {
+                "name": record.get("gene", "Unknown"),
+                "curie": record.get("gene_id", "unknown:unknown"),
+                "namespace": "hgnc",
+                "identifier": record.get("gene_id", "unknown"),
+            }
+        )
 
     return genes
 

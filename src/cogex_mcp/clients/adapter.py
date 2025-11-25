@@ -11,13 +11,13 @@ Implements:
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
-from enum import Enum
 from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any
 
-from cogex_mcp.config import settings
 from cogex_mcp.clients.neo4j_client import Neo4jClient
 from cogex_mcp.clients.rest_client import RestClient
+from cogex_mcp.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class CircuitBreaker:
         self.state = CircuitBreakerState.CLOSED
         self.failure_count = 0
         self.success_count = 0
-        self.last_failure_time: Optional[datetime] = None
+        self.last_failure_time: datetime | None = None
         self._lock = asyncio.Lock()
 
     async def call(self, func, *args, **kwargs) -> Any:
@@ -96,10 +96,8 @@ class CircuitBreaker:
         async with self._lock:
             # Check if circuit should transition to half-open
             if self.state == CircuitBreakerState.OPEN:
-                if (
-                    self.last_failure_time
-                    and datetime.now() - self.last_failure_time
-                    > timedelta(seconds=self.recovery_timeout)
+                if self.last_failure_time and datetime.now() - self.last_failure_time > timedelta(
+                    seconds=self.recovery_timeout
                 ):
                     logger.info("Circuit breaker transitioning to HALF_OPEN")
                     self.state = CircuitBreakerState.HALF_OPEN
@@ -134,9 +132,7 @@ class CircuitBreaker:
                     self.state = CircuitBreakerState.OPEN
                     self.failure_count = 0
                 elif self.failure_count >= self.failure_threshold:
-                    logger.error(
-                        f"Circuit breaker OPEN after {self.failure_count} failures"
-                    )
+                    logger.error(f"Circuit breaker OPEN after {self.failure_count} failures")
                     self.state = CircuitBreakerState.OPEN
 
             raise e
@@ -163,11 +159,11 @@ class ClientAdapter:
 
     def __init__(self):
         """Initialize client adapter with configured backends."""
-        self.neo4j_client: Optional[Neo4jClient] = None
-        self.rest_client: Optional[RestClient] = None
+        self.neo4j_client: Neo4jClient | None = None
+        self.rest_client: RestClient | None = None
 
-        self.neo4j_breaker: Optional[CircuitBreaker] = None
-        self.rest_breaker: Optional[CircuitBreaker] = None
+        self.neo4j_breaker: CircuitBreaker | None = None
+        self.rest_breaker: CircuitBreaker | None = None
 
         self.primary_backend = BackendType.NONE
         self.fallback_backend = BackendType.NONE
@@ -178,7 +174,7 @@ class ClientAdapter:
         # Health tracking
         self.neo4j_health = BackendHealth.UNKNOWN
         self.rest_health = BackendHealth.UNKNOWN
-        self.last_health_check: Optional[datetime] = None
+        self.last_health_check: datetime | None = None
         self.health_check_interval = 300  # 5 minutes
 
     async def initialize(self) -> None:
@@ -272,7 +268,7 @@ class ClientAdapter:
         self,
         query_name: str,
         **params: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute query with automatic backend selection and fallback.
 
@@ -295,26 +291,18 @@ class ClientAdapter:
         # Try primary backend first
         if await self._can_use_backend(self.primary_backend):
             try:
-                result = await self._execute_on_backend(
-                    self.primary_backend, query_name, **params
-                )
+                result = await self._execute_on_backend(self.primary_backend, query_name, **params)
                 logger.debug(f"Query '{query_name}' succeeded on {self.primary_backend}")
                 return result
             except Exception as e:
-                logger.warning(
-                    f"Query '{query_name}' failed on {self.primary_backend}: {e}"
-                )
+                logger.warning(f"Query '{query_name}' failed on {self.primary_backend}: {e}")
                 # Continue to fallback
 
         # Try fallback backend
         if await self._can_use_backend(self.fallback_backend):
             try:
-                result = await self._execute_on_backend(
-                    self.fallback_backend, query_name, **params
-                )
-                logger.info(
-                    f"Query '{query_name}' succeeded on fallback {self.fallback_backend}"
-                )
+                result = await self._execute_on_backend(self.fallback_backend, query_name, **params)
+                logger.info(f"Query '{query_name}' succeeded on fallback {self.fallback_backend}")
                 return result
             except Exception as e:
                 logger.error(
@@ -354,7 +342,7 @@ class ClientAdapter:
         backend: BackendType,
         query_name: str,
         **params: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute query on specific backend through circuit breaker.
 
@@ -382,10 +370,8 @@ class ClientAdapter:
 
     async def _check_health_if_needed(self) -> None:
         """Check backend health if interval has passed."""
-        if (
-            self.last_health_check is None
-            or datetime.now() - self.last_health_check
-            > timedelta(seconds=self.health_check_interval)
+        if self.last_health_check is None or datetime.now() - self.last_health_check > timedelta(
+            seconds=self.health_check_interval
         ):
             await self._check_health()
 
@@ -413,7 +399,7 @@ class ClientAdapter:
 
         self.last_health_check = datetime.now()
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """
         Get adapter status and health information.
 
@@ -435,16 +421,12 @@ class ClientAdapter:
             "neo4j": {
                 "available": neo4j_available,
                 "health": self.neo4j_health.value,
-                "circuit_open": (
-                    self.neo4j_breaker.is_open() if self.neo4j_breaker else None
-                ),
+                "circuit_open": (self.neo4j_breaker.is_open() if self.neo4j_breaker else None),
             },
             "rest": {
                 "available": rest_available,
                 "health": self.rest_health.value,
-                "circuit_open": (
-                    self.rest_breaker.is_open() if self.rest_breaker else None
-                ),
+                "circuit_open": (self.rest_breaker.is_open() if self.rest_breaker else None),
             },
             "last_health_check": (
                 self.last_health_check.isoformat() if self.last_health_check else None
@@ -453,7 +435,7 @@ class ClientAdapter:
 
 
 # Global adapter instance
-_adapter: Optional[ClientAdapter] = None
+_adapter: ClientAdapter | None = None
 
 
 async def get_adapter() -> ClientAdapter:

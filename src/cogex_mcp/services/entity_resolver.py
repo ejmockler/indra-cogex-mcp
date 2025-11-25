@@ -6,20 +6,17 @@ Handles ambiguous identifiers with helpful suggestions.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
 
 from cogex_mcp.clients.adapter import get_adapter
-from cogex_mcp.services.cache import get_cache
-from cogex_mcp.schemas import EntityRef, GeneNode, DrugNode, OntologyTerm
 from cogex_mcp.constants import (
-    CACHE_PREFIX_GENE,
     CACHE_PREFIX_DRUG,
-    CACHE_PREFIX_DISEASE,
-    CACHE_PREFIX_PATHWAY,
+    CACHE_PREFIX_GENE,
     CACHE_PREFIX_ONTOLOGY,
-    ERROR_ENTITY_NOT_FOUND,
     ERROR_AMBIGUOUS_IDENTIFIER,
+    ERROR_ENTITY_NOT_FOUND,
 )
+from cogex_mcp.schemas import DrugNode, EntityRef, GeneNode, OntologyTerm
+from cogex_mcp.services.cache import get_cache
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +30,7 @@ class EntityResolutionError(Exception):
 class EntityNotFoundError(EntityResolutionError):
     """Entity not found in database."""
 
-    def __init__(self, entity: str, suggestions: Optional[List[str]] = None):
+    def __init__(self, entity: str, suggestions: list[str] | None = None):
         self.entity = entity
         self.suggestions = suggestions or []
         message = ERROR_ENTITY_NOT_FOUND.format(entity=entity)
@@ -45,7 +42,7 @@ class EntityNotFoundError(EntityResolutionError):
 class AmbiguousIdentifierError(EntityResolutionError):
     """Identifier matches multiple entities."""
 
-    def __init__(self, identifier: str, matches: List[Dict[str, str]]):
+    def __init__(self, identifier: str, matches: list[dict[str, str]]):
         self.identifier = identifier
         self.matches = matches
         match_strs = [f"{m['name']} ({m['curie']})" for m in matches]
@@ -73,7 +70,7 @@ class EntityResolver:
 
     async def resolve_gene(
         self,
-        identifier: str | Tuple[str, str],
+        identifier: str | tuple[str, str],
     ) -> GeneNode:
         """
         Resolve gene identifier to standardized gene node.
@@ -107,7 +104,7 @@ class EntityResolver:
 
     async def _resolve_gene_from_backend(
         self,
-        identifier: str | Tuple[str, str],
+        identifier: str | tuple[str, str],
     ) -> GeneNode:
         """Resolve gene from backend (Neo4j or REST) with correct query routing."""
         adapter = await get_adapter()
@@ -177,21 +174,21 @@ class EntityResolver:
             logger.error(f"Error resolving gene {identifier}: {e}")
             raise EntityResolutionError(f"Failed to resolve gene: {e}")
 
-    async def _get_gene_suggestions(self, identifier: str) -> List[str]:
+    async def _get_gene_suggestions(self, identifier: str) -> list[str]:
         """Get fuzzy match suggestions for gene identifier."""
         # Simple fuzzy matching - in production, use edit distance
         # For now, return empty suggestions
         # TODO: Implement fuzzy matching with Levenshtein distance
         return []
 
-    def _make_gene_cache_key(self, identifier: str | Tuple[str, str]) -> str:
+    def _make_gene_cache_key(self, identifier: str | tuple[str, str]) -> str:
         """Create cache key for gene identifier."""
         if isinstance(identifier, tuple):
             return self.cache.make_key(CACHE_PREFIX_GENE, identifier[0], identifier[1])
         else:
             return self.cache.make_key(CACHE_PREFIX_GENE, identifier)
 
-    async def resolve_drug(self, identifier: str | Tuple[str, str]) -> DrugNode:
+    async def resolve_drug(self, identifier: str | tuple[str, str]) -> DrugNode:
         """
         Resolve drug identifier to DrugNode.
 
@@ -223,7 +220,7 @@ class EntityResolver:
 
     async def _resolve_drug_from_backend(
         self,
-        identifier: str | Tuple[str, str],
+        identifier: str | tuple[str, str],
     ) -> DrugNode:
         """Resolve drug from backend (Neo4j or REST)."""
         adapter = await get_adapter()
@@ -301,14 +298,14 @@ class EntityResolver:
             logger.error(f"Error resolving drug {identifier}: {e}")
             raise EntityResolutionError(f"Failed to resolve drug: {e}")
 
-    def _make_drug_cache_key(self, identifier: str | Tuple[str, str]) -> str:
+    def _make_drug_cache_key(self, identifier: str | tuple[str, str]) -> str:
         """Create cache key for drug identifier."""
         if isinstance(identifier, tuple):
             return self.cache.make_key(CACHE_PREFIX_DRUG, identifier[0], identifier[1])
         else:
             return self.cache.make_key(CACHE_PREFIX_DRUG, identifier)
 
-    async def resolve_disease(self, identifier: str | Tuple[str, str]) -> EntityRef:
+    async def resolve_disease(self, identifier: str | tuple[str, str]) -> EntityRef:
         """
         Resolve disease identifier to EntityRef.
 
@@ -347,7 +344,7 @@ class EntityResolver:
                 identifier=identifier,
             )
 
-    async def resolve_pathway(self, identifier: str | Tuple[str, str]) -> EntityRef:
+    async def resolve_pathway(self, identifier: str | tuple[str, str]) -> EntityRef:
         """
         Resolve pathway identifier to EntityRef.
 
@@ -385,7 +382,7 @@ class EntityResolver:
                 identifier=identifier,
             )
 
-    async def resolve_ontology_term(self, identifier: str | Tuple[str, str]) -> OntologyTerm:
+    async def resolve_ontology_term(self, identifier: str | tuple[str, str]) -> OntologyTerm:
         """
         Resolve ontology term identifier to OntologyTerm.
 
@@ -418,7 +415,7 @@ class EntityResolver:
 
     async def _resolve_ontology_from_backend(
         self,
-        identifier: str | Tuple[str, str],
+        identifier: str | tuple[str, str],
     ) -> OntologyTerm:
         """Resolve ontology term from backend (Neo4j or REST)."""
         adapter = await get_adapter()
@@ -495,7 +492,7 @@ class EntityResolver:
             logger.error(f"Error resolving ontology term {identifier}: {e}")
             raise EntityResolutionError(f"Failed to resolve ontology term: {e}")
 
-    def _make_ontology_cache_key(self, identifier: str | Tuple[str, str]) -> str:
+    def _make_ontology_cache_key(self, identifier: str | tuple[str, str]) -> str:
         """Create cache key for ontology term identifier."""
         if isinstance(identifier, tuple):
             return self.cache.make_key(CACHE_PREFIX_ONTOLOGY, identifier[0], identifier[1])
@@ -504,7 +501,7 @@ class EntityResolver:
 
 
 # Singleton instance
-_resolver: Optional[EntityResolver] = None
+_resolver: EntityResolver | None = None
 
 
 def get_resolver() -> EntityResolver:

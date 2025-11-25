@@ -9,10 +9,10 @@ Handles conversion between Markdown and JSON formats with:
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
 from datetime import datetime
+from typing import Any
 
-from cogex_mcp.constants import ResponseFormat, CHARACTER_LIMIT, TRUNCATION_MESSAGE
+from cogex_mcp.constants import CHARACTER_LIMIT, TRUNCATION_MESSAGE, ResponseFormat
 from cogex_mcp.schemas import EntityRef, PaginatedResponse
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,7 @@ class ResponseFormatter:
             return str(data)
 
     @staticmethod
-    def _dict_to_markdown(data: Dict[str, Any], level: int = 1) -> str:
+    def _dict_to_markdown(data: dict[str, Any], level: int = 1) -> str:
         """Convert dictionary to Markdown."""
         lines = []
 
@@ -132,7 +132,7 @@ class ResponseFormatter:
         return "\n".join(lines)
 
     @staticmethod
-    def _list_to_markdown(data: List[Any]) -> str:
+    def _list_to_markdown(data: list[Any]) -> str:
         """Convert list to Markdown."""
         if not data:
             return "_No items_\n"
@@ -190,7 +190,7 @@ class ResponseFormatter:
         return " ".join(parts)
 
     @staticmethod
-    def format_gene_info_markdown(gene_data: Dict[str, Any]) -> str:
+    def format_gene_info_markdown(gene_data: dict[str, Any]) -> str:
         """
         Format gene information as Markdown.
 
@@ -209,11 +209,13 @@ class ResponseFormatter:
             lines.extend(["## Description", gene_data["description"], ""])
 
         if gene_data.get("synonyms"):
-            lines.extend([
-                "## Synonyms",
-                ", ".join(gene_data["synonyms"]),
-                "",
-            ])
+            lines.extend(
+                [
+                    "## Synonyms",
+                    ", ".join(gene_data["synonyms"]),
+                    "",
+                ]
+            )
 
         # Expression data
         if gene_data.get("expression"):
@@ -244,8 +246,7 @@ class ResponseFormatter:
             for pathway in gene_data["pathways"]:
                 pw = pathway.get("pathway", {})
                 lines.append(
-                    f"- **{pw.get('name', 'Unknown')}** "
-                    f"({pathway.get('source', 'unknown')})"
+                    f"- **{pw.get('name', 'Unknown')}** ({pathway.get('source', 'unknown')})"
                 )
             lines.append("")
 
@@ -254,18 +255,15 @@ class ResponseFormatter:
             lines.append("## Disease Associations")
             for disease in gene_data["diseases"]:
                 dis = disease.get("disease", {})
-                score = disease.get('score', 0.0)
-                sources = ", ".join(disease.get('sources', []))
-                lines.append(
-                    f"- **{dis.get('name', 'Unknown')}**: "
-                    f"score={score:.3f} ({sources})"
-                )
+                score = disease.get("score", 0.0)
+                sources = ", ".join(disease.get("sources", []))
+                lines.append(f"- **{dis.get('name', 'Unknown')}**: score={score:.3f} ({sources})")
             lines.append("")
 
         return "\n".join(lines)
 
     @staticmethod
-    def format_enrichment_results_markdown(results: List[Dict[str, Any]]) -> str:
+    def format_enrichment_results_markdown(results: list[dict[str, Any]]) -> str:
         """
         Format enrichment results as Markdown table.
 
@@ -292,10 +290,7 @@ class ResponseFormatter:
             gene_count = result.get("gene_count", 0)
             term_size = result.get("term_size", 0)
 
-            lines.append(
-                f"| {term} | {p_val:.2e} | {adj_p:.2e} | "
-                f"{gene_count} | {term_size} |"
-            )
+            lines.append(f"| {term} | {p_val:.2e} | {adj_p:.2e} | {gene_count} | {term_size} |")
 
         if len(results) > 50:
             lines.append("")
@@ -305,7 +300,7 @@ class ResponseFormatter:
 
 
 # Global formatter instance
-_formatter: Optional[ResponseFormatter] = None
+_formatter: ResponseFormatter | None = None
 
 
 def get_formatter() -> ResponseFormatter:

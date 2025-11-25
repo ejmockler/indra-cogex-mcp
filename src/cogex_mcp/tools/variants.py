@@ -12,29 +12,30 @@ Modes:
 6. check_association: Check variant-disease association
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
+if TYPE_CHECKING:
+    from cogex_mcp.schemas_tool10 import PhenotypeNode, VariantNode
+
+from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    READONLY_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
+)
 from cogex_mcp.schemas import (
     VariantQuery,
     VariantQueryMode,
-    GeneNode,
-    DiseaseNode,
-    EntityRef,
 )
-from cogex_mcp.constants import (
-    READONLY_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
-    CHARACTER_LIMIT,
-)
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -192,7 +193,7 @@ async def cogex_query_variants(
 async def _get_variants_for_gene(
     params: VariantQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_for_gene
     Get variants in or near a specific gene.
@@ -242,7 +243,7 @@ async def _get_variants_for_gene(
 async def _get_variants_for_disease(
     params: VariantQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_for_disease
     Get variants associated with a disease.
@@ -290,7 +291,7 @@ async def _get_variants_for_disease(
 async def _get_variants_for_phenotype(
     params: VariantQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_for_phenotype
     Get GWAS hits for a phenotype.
@@ -303,7 +304,7 @@ async def _get_variants_for_phenotype(
     # Resolve phenotype identifier
     phenotype_id = params.phenotype if isinstance(params.phenotype, str) else params.phenotype[1]
 
-    await ctx.report_progress(0.3, f"Fetching variants for phenotype...")
+    await ctx.report_progress(0.3, "Fetching variants for phenotype...")
 
     adapter = await get_adapter()
     variant_data = await adapter.query(
@@ -337,7 +338,7 @@ async def _get_variants_for_phenotype(
 async def _variant_to_genes(
     params: VariantQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: variant_to_genes
     Find nearby genes for a variant.
@@ -379,7 +380,7 @@ async def _variant_to_genes(
 async def _variant_to_phenotypes(
     params: VariantQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: variant_to_phenotypes
     Find associated phenotypes for a variant.
@@ -422,7 +423,7 @@ async def _variant_to_phenotypes(
 async def _check_association(
     params: VariantQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: check_association
     Check if variant is associated with disease.
@@ -473,7 +474,7 @@ async def _check_association(
 # ============================================================================
 
 
-def _parse_variant_node(data: Dict[str, Any]) -> "VariantNode":
+def _parse_variant_node(data: dict[str, Any]) -> VariantNode:
     """Parse single variant from backend response."""
     # Import locally to avoid circular dependency
     from cogex_mcp.schemas_tool10 import VariantNode
@@ -492,9 +493,8 @@ def _parse_variant_node(data: Dict[str, Any]) -> "VariantNode":
     )
 
 
-def _parse_variant_list(data: Dict[str, Any], params: VariantQuery) -> List["VariantNode"]:
+def _parse_variant_list(data: dict[str, Any], params: VariantQuery) -> list[VariantNode]:
     """Parse variant list from backend response with p-value filtering."""
-    from cogex_mcp.schemas_tool10 import VariantNode
 
     if not data.get("success") or not data.get("records"):
         return []
@@ -514,7 +514,7 @@ def _parse_variant_list(data: Dict[str, Any], params: VariantQuery) -> List["Var
     return variants
 
 
-def _parse_phenotype_node(data: Dict[str, Any]) -> "PhenotypeNode":
+def _parse_phenotype_node(data: dict[str, Any]) -> PhenotypeNode:
     """Parse single phenotype from backend response."""
     from cogex_mcp.schemas_tool10 import PhenotypeNode
 
@@ -527,7 +527,7 @@ def _parse_phenotype_node(data: Dict[str, Any]) -> "PhenotypeNode":
     )
 
 
-def _parse_phenotype_list(data: Dict[str, Any]) -> List["PhenotypeNode"]:
+def _parse_phenotype_list(data: dict[str, Any]) -> list[PhenotypeNode]:
     """Parse phenotype list from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
@@ -539,21 +539,23 @@ def _parse_phenotype_list(data: Dict[str, Any]) -> List["PhenotypeNode"]:
     return phenotypes
 
 
-def _parse_gene_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_gene_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse gene list from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     genes = []
     for record in data["records"]:
-        genes.append({
-            "name": record.get("gene", record.get("name", "Unknown")),
-            "curie": record.get("gene_id", record.get("curie", "unknown:unknown")),
-            "namespace": "hgnc",
-            "identifier": record.get("gene_id", record.get("identifier", "unknown")),
-            "description": record.get("description"),
-            "synonyms": record.get("synonyms", []),
-        })
+        genes.append(
+            {
+                "name": record.get("gene", record.get("name", "Unknown")),
+                "curie": record.get("gene_id", record.get("curie", "unknown:unknown")),
+                "namespace": "hgnc",
+                "identifier": record.get("gene_id", record.get("identifier", "unknown")),
+                "description": record.get("description"),
+                "synonyms": record.get("synonyms", []),
+            }
+        )
 
     return genes
 

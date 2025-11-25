@@ -9,32 +9,24 @@ Modes:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
+from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    READONLY_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
+)
 from cogex_mcp.schemas import (
     DrugEffectQuery,
     DrugQueryMode,
-    DrugNode,
-    DrugTarget,
-    DrugIndication,
-    SideEffect,
-    ClinicalTrial,
-    CellLineSensitivity,
-    EntityRef,
 )
-from cogex_mcp.constants import (
-    READONLY_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
-    CHARACTER_LIMIT,
-)
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +140,7 @@ async def cogex_query_drug_or_effect(
 async def _drug_to_profile(
     params: DrugEffectQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: drug_to_profile
     Get comprehensive drug profile with all requested features.
@@ -221,7 +213,7 @@ async def _drug_to_profile(
 async def _side_effect_to_drugs(
     params: DrugEffectQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: side_effect_to_drugs
     Find drugs associated with a specific side effect.
@@ -235,9 +227,7 @@ async def _side_effect_to_drugs(
     # For now, accept side effect name directly
     # TODO: Implement side effect resolution
     side_effect_id = (
-        params.side_effect
-        if isinstance(params.side_effect, str)
-        else params.side_effect[1]
+        params.side_effect if isinstance(params.side_effect, str) else params.side_effect[1]
     )
 
     adapter = await get_adapter()
@@ -274,69 +264,75 @@ async def _side_effect_to_drugs(
 # ============================================================================
 
 
-def _parse_targets(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_targets(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse drug targets from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     targets = []
     for record in data["records"]:
-        targets.append({
-            "target": {
-                "name": record.get("target", "Unknown"),
-                "curie": record.get("target_id", "unknown:unknown"),
-                "namespace": record.get("target_namespace", "hgnc"),
-                "identifier": record.get("target_id", "unknown"),
-            },
-            "action_type": record.get("action_type"),
-            "evidence_count": record.get("evidence_count", 0),
-        })
+        targets.append(
+            {
+                "target": {
+                    "name": record.get("target", "Unknown"),
+                    "curie": record.get("target_id", "unknown:unknown"),
+                    "namespace": record.get("target_namespace", "hgnc"),
+                    "identifier": record.get("target_id", "unknown"),
+                },
+                "action_type": record.get("action_type"),
+                "evidence_count": record.get("evidence_count", 0),
+            }
+        )
 
     return targets
 
 
-def _parse_indications(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_indications(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse drug indications from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     indications = []
     for record in data["records"]:
-        indications.append({
-            "disease": {
-                "name": record.get("disease", "Unknown"),
-                "curie": record.get("disease_id", "unknown:unknown"),
-                "namespace": "mondo",
-                "identifier": record.get("disease_id", "unknown"),
-            },
-            "indication_type": record.get("indication_type", "unknown"),
-            "max_phase": record.get("max_phase"),
-        })
+        indications.append(
+            {
+                "disease": {
+                    "name": record.get("disease", "Unknown"),
+                    "curie": record.get("disease_id", "unknown:unknown"),
+                    "namespace": "mondo",
+                    "identifier": record.get("disease_id", "unknown"),
+                },
+                "indication_type": record.get("indication_type", "unknown"),
+                "max_phase": record.get("max_phase"),
+            }
+        )
 
     return indications
 
 
-def _parse_side_effects(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_side_effects(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse side effects from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     side_effects = []
     for record in data["records"]:
-        side_effects.append({
-            "effect": {
-                "name": record.get("effect", "Unknown"),
-                "curie": record.get("effect_id", "unknown:unknown"),
-                "namespace": "umls",
-                "identifier": record.get("effect_id", "unknown"),
-            },
-            "frequency": record.get("frequency"),
-        })
+        side_effects.append(
+            {
+                "effect": {
+                    "name": record.get("effect", "Unknown"),
+                    "curie": record.get("effect_id", "unknown:unknown"),
+                    "namespace": "umls",
+                    "identifier": record.get("effect_id", "unknown"),
+                },
+                "frequency": record.get("frequency"),
+            }
+        )
 
     return side_effects
 
 
-def _parse_trials(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_trials(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse clinical trials from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
@@ -344,49 +340,55 @@ def _parse_trials(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     trials = []
     for record in data["records"]:
         nct_id = record.get("nct_id", "unknown")
-        trials.append({
-            "nct_id": nct_id,
-            "title": record.get("title", "Unknown"),
-            "phase": record.get("phase"),
-            "status": record.get("status", "unknown"),
-            "conditions": record.get("conditions", []),
-            "interventions": record.get("interventions", []),
-            "url": f"https://clinicaltrials.gov/ct2/show/{nct_id}",
-        })
+        trials.append(
+            {
+                "nct_id": nct_id,
+                "title": record.get("title", "Unknown"),
+                "phase": record.get("phase"),
+                "status": record.get("status", "unknown"),
+                "conditions": record.get("conditions", []),
+                "interventions": record.get("interventions", []),
+                "url": f"https://clinicaltrials.gov/ct2/show/{nct_id}",
+            }
+        )
 
     return trials
 
 
-def _parse_cell_lines(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_cell_lines(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse cell line sensitivity data from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     cell_lines = []
     for record in data["records"]:
-        cell_lines.append({
-            "cell_line": record.get("cell_line", "Unknown"),
-            "sensitivity_score": record.get("sensitivity_score", 0.0),
-        })
+        cell_lines.append(
+            {
+                "cell_line": record.get("cell_line", "Unknown"),
+                "sensitivity_score": record.get("sensitivity_score", 0.0),
+            }
+        )
 
     return cell_lines
 
 
-def _parse_drug_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_drug_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse drug list from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     drugs = []
     for record in data["records"]:
-        drugs.append({
-            "name": record.get("drug", "Unknown"),
-            "curie": record.get("drug_id", "unknown:unknown"),
-            "namespace": "chembl",
-            "identifier": record.get("drug_id", "unknown"),
-            "synonyms": record.get("synonyms", []),
-            "drug_type": record.get("drug_type"),
-        })
+        drugs.append(
+            {
+                "name": record.get("drug", "Unknown"),
+                "curie": record.get("drug_id", "unknown:unknown"),
+                "namespace": "chembl",
+                "identifier": record.get("drug_id", "unknown"),
+                "synonyms": record.get("synonyms", []),
+                "drug_type": record.get("drug_type"),
+            }
+        )
 
     return drugs
 

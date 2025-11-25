@@ -12,32 +12,24 @@ Modes:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
+from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    READONLY_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
+)
 from cogex_mcp.schemas import (
     CellLineQuery,
     CellLineQueryMode,
-    CellLineNode,
-    GeneMutation,
-    CopyNumberEvent,
-    GeneDependency,
-    GeneExpression,
-    EntityRef,
-    GeneNode,
 )
-from cogex_mcp.constants import (
-    READONLY_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
-    CHARACTER_LIMIT,
-)
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +167,7 @@ async def cogex_query_cell_line(
 async def _get_cell_line_properties(
     params: CellLineQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_properties
     Get comprehensive cell line profile with all requested features.
@@ -243,7 +235,7 @@ async def _get_cell_line_properties(
 async def _get_mutated_genes(
     params: CellLineQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_mutated_genes
     Get list of genes mutated in cell line.
@@ -292,7 +284,7 @@ async def _get_mutated_genes(
 async def _get_cell_lines_with_mutation(
     params: CellLineQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_cell_lines_with_mutation
     Find cell lines with specific gene mutation.
@@ -341,7 +333,7 @@ async def _get_cell_lines_with_mutation(
 async def _check_mutation(
     params: CellLineQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: check_mutation
     Check if gene is mutated in cell line.
@@ -385,29 +377,31 @@ async def _check_mutation(
 # ============================================================================
 
 
-def _parse_mutations(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_mutations(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse mutations from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     mutations = []
     for record in data["records"]:
-        mutations.append({
-            "gene": {
-                "name": record.get("gene", "Unknown"),
-                "curie": record.get("gene_id", "unknown:unknown"),
-                "namespace": "hgnc",
-                "identifier": record.get("gene_id", "unknown"),
-            },
-            "mutation_type": record.get("mutation_type", "unknown"),
-            "protein_change": record.get("protein_change"),
-            "is_driver": record.get("is_driver", False),
-        })
+        mutations.append(
+            {
+                "gene": {
+                    "name": record.get("gene", "Unknown"),
+                    "curie": record.get("gene_id", "unknown:unknown"),
+                    "namespace": "hgnc",
+                    "identifier": record.get("gene_id", "unknown"),
+                },
+                "mutation_type": record.get("mutation_type", "unknown"),
+                "protein_change": record.get("protein_change"),
+                "is_driver": record.get("is_driver", False),
+            }
+        )
 
     return mutations
 
 
-def _parse_copy_number(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_copy_number(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse copy number alterations from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
@@ -422,63 +416,69 @@ def _parse_copy_number(data: Dict[str, Any]) -> List[Dict[str, Any]]:
         else:
             alt_type = "neutral"
 
-        cnas.append({
-            "gene": {
-                "name": record.get("gene", "Unknown"),
-                "curie": record.get("gene_id", "unknown:unknown"),
-                "namespace": "hgnc",
-                "identifier": record.get("gene_id", "unknown"),
-            },
-            "copy_number": copy_num,
-            "alteration_type": alt_type,
-        })
+        cnas.append(
+            {
+                "gene": {
+                    "name": record.get("gene", "Unknown"),
+                    "curie": record.get("gene_id", "unknown:unknown"),
+                    "namespace": "hgnc",
+                    "identifier": record.get("gene_id", "unknown"),
+                },
+                "copy_number": copy_num,
+                "alteration_type": alt_type,
+            }
+        )
 
     return cnas
 
 
-def _parse_dependencies(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_dependencies(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse gene dependencies from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     dependencies = []
     for record in data["records"]:
-        dependencies.append({
-            "gene": {
-                "name": record.get("gene", "Unknown"),
-                "curie": record.get("gene_id", "unknown:unknown"),
-                "namespace": "hgnc",
-                "identifier": record.get("gene_id", "unknown"),
-            },
-            "dependency_score": record.get("dependency_score", 0.0),
-            "percentile": record.get("percentile"),
-        })
+        dependencies.append(
+            {
+                "gene": {
+                    "name": record.get("gene", "Unknown"),
+                    "curie": record.get("gene_id", "unknown:unknown"),
+                    "namespace": "hgnc",
+                    "identifier": record.get("gene_id", "unknown"),
+                },
+                "dependency_score": record.get("dependency_score", 0.0),
+                "percentile": record.get("percentile"),
+            }
+        )
 
     return dependencies
 
 
-def _parse_expression(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_expression(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse expression data from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     expression = []
     for record in data["records"]:
-        expression.append({
-            "gene": {
-                "name": record.get("gene", "Unknown"),
-                "curie": record.get("gene_id", "unknown:unknown"),
-                "namespace": "hgnc",
-                "identifier": record.get("gene_id", "unknown"),
-            },
-            "expression_value": record.get("expression_value", 0.0),
-            "unit": record.get("unit", "TPM"),
-        })
+        expression.append(
+            {
+                "gene": {
+                    "name": record.get("gene", "Unknown"),
+                    "curie": record.get("gene_id", "unknown:unknown"),
+                    "namespace": "hgnc",
+                    "identifier": record.get("gene_id", "unknown"),
+                },
+                "expression_value": record.get("expression_value", 0.0),
+                "unit": record.get("unit", "TPM"),
+            }
+        )
 
     return expression
 
 
-def _parse_gene_list_from_mutations(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_gene_list_from_mutations(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse gene list from mutation data."""
     if not data.get("success") or not data.get("records"):
         return []
@@ -490,19 +490,21 @@ def _parse_gene_list_from_mutations(data: Dict[str, Any]) -> List[Dict[str, Any]
         gene_name = record.get("gene", "Unknown")
         if gene_name not in seen_genes:
             seen_genes.add(gene_name)
-            genes.append({
-                "name": gene_name,
-                "curie": record.get("gene_id", "unknown:unknown"),
-                "namespace": "hgnc",
-                "identifier": record.get("gene_id", "unknown"),
-                "description": None,
-                "synonyms": [],
-            })
+            genes.append(
+                {
+                    "name": gene_name,
+                    "curie": record.get("gene_id", "unknown:unknown"),
+                    "namespace": "hgnc",
+                    "identifier": record.get("gene_id", "unknown"),
+                    "description": None,
+                    "synonyms": [],
+                }
+            )
 
     return genes
 
 
-def _parse_cell_line_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_cell_line_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse cell line list from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
@@ -510,13 +512,15 @@ def _parse_cell_line_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     cell_lines = []
     for record in data["records"]:
         cell_line_name = record.get("cell_line", "Unknown")
-        cell_lines.append({
-            "name": cell_line_name,
-            "ccle_id": record.get("ccle_id", f"ccle:{cell_line_name}"),
-            "depmap_id": record.get("depmap_id", f"depmap:{cell_line_name}"),
-            "tissue": record.get("tissue"),
-            "disease": record.get("disease"),
-        })
+        cell_lines.append(
+            {
+                "name": cell_line_name,
+                "ccle_id": record.get("ccle_id", f"ccle:{cell_line_name}"),
+                "depmap_id": record.get("depmap_id", f"depmap:{cell_line_name}"),
+                "tissue": record.get("tissue"),
+                "disease": record.get("disease"),
+            }
+        )
 
     return cell_lines
 

@@ -10,32 +10,25 @@ Modes:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
+from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    READONLY_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
+)
 from cogex_mcp.schemas import (
+    DiseaseNode,
     DiseasePhenotypeQuery,
     DiseaseQueryMode,
-    DiseaseNode,
-    GeneAssociation,
-    VariantAssociation,
-    PhenotypeAssociation,
-    DrugTherapy,
-    ClinicalTrial,
-    EntityRef,
 )
-from cogex_mcp.constants import (
-    READONLY_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
-    CHARACTER_LIMIT,
-)
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +158,7 @@ async def cogex_query_disease_or_phenotype(
 async def _disease_to_mechanisms(
     params: DiseasePhenotypeQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: disease_to_mechanisms
     Get comprehensive disease profile with all molecular mechanisms.
@@ -246,7 +239,7 @@ async def _disease_to_mechanisms(
 async def _phenotype_to_diseases(
     params: DiseasePhenotypeQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: phenotype_to_diseases
     Find diseases associated with a specific phenotype.
@@ -257,9 +250,7 @@ async def _phenotype_to_diseases(
     await ctx.report_progress(0.3, "Querying diseases for phenotype...")
 
     # Parse phenotype identifier
-    phenotype_id = (
-        params.phenotype if isinstance(params.phenotype, str) else params.phenotype[1]
-    )
+    phenotype_id = params.phenotype if isinstance(params.phenotype, str) else params.phenotype[1]
 
     adapter = await get_adapter()
     disease_data = await adapter.query(
@@ -293,7 +284,7 @@ async def _phenotype_to_diseases(
 async def _check_phenotype(
     params: DiseasePhenotypeQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: check_phenotype
     Boolean check: Does disease have specific phenotype?
@@ -310,9 +301,7 @@ async def _check_phenotype(
     disease_ref = await resolver.resolve_disease(params.disease)
 
     # Parse phenotype identifier
-    phenotype_id = (
-        params.phenotype if isinstance(params.phenotype, str) else params.phenotype[1]
-    )
+    phenotype_id = params.phenotype if isinstance(params.phenotype, str) else params.phenotype[1]
 
     adapter = await get_adapter()
     check_data = await adapter.query(
@@ -349,95 +338,103 @@ async def _check_phenotype(
 # ============================================================================
 
 
-def _parse_gene_associations(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_gene_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse gene-disease associations from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     associations = []
     for record in data["records"]:
-        associations.append({
-            "gene": {
-                "name": record.get("gene", "Unknown"),
-                "curie": record.get("gene_id", "unknown:unknown"),
-                "namespace": "hgnc",
-                "identifier": record.get("gene_id", "unknown"),
-            },
-            "score": record.get("score", 0.0),
-            "evidence_count": record.get("evidence_count", 0),
-            "sources": record.get("sources", []),
-        })
+        associations.append(
+            {
+                "gene": {
+                    "name": record.get("gene", "Unknown"),
+                    "curie": record.get("gene_id", "unknown:unknown"),
+                    "namespace": "hgnc",
+                    "identifier": record.get("gene_id", "unknown"),
+                },
+                "score": record.get("score", 0.0),
+                "evidence_count": record.get("evidence_count", 0),
+                "sources": record.get("sources", []),
+            }
+        )
 
     return associations
 
 
-def _parse_variant_associations(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_variant_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse variant-disease associations from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     variants = []
     for record in data["records"]:
-        variants.append({
-            "variant": record.get("rsid", "unknown"),
-            "gene": {
-                "name": record.get("gene", "Unknown"),
-                "curie": record.get("gene_id", "unknown:unknown"),
-                "namespace": "hgnc",
-                "identifier": record.get("gene_id", "unknown"),
-            },
-            "p_value": record.get("p_value"),
-            "odds_ratio": record.get("odds_ratio"),
-            "trait": record.get("trait"),
-        })
+        variants.append(
+            {
+                "variant": record.get("rsid", "unknown"),
+                "gene": {
+                    "name": record.get("gene", "Unknown"),
+                    "curie": record.get("gene_id", "unknown:unknown"),
+                    "namespace": "hgnc",
+                    "identifier": record.get("gene_id", "unknown"),
+                },
+                "p_value": record.get("p_value"),
+                "odds_ratio": record.get("odds_ratio"),
+                "trait": record.get("trait"),
+            }
+        )
 
     return variants
 
 
-def _parse_phenotype_associations(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_phenotype_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse disease-phenotype associations from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     phenotypes = []
     for record in data["records"]:
-        phenotypes.append({
-            "phenotype": {
-                "name": record.get("phenotype", "Unknown"),
-                "curie": record.get("phenotype_id", "unknown:unknown"),
-                "namespace": "hp",  # Human Phenotype Ontology
-                "identifier": record.get("phenotype_id", "unknown"),
-            },
-            "frequency": record.get("frequency"),
-            "evidence_count": record.get("evidence_count", 0),
-        })
+        phenotypes.append(
+            {
+                "phenotype": {
+                    "name": record.get("phenotype", "Unknown"),
+                    "curie": record.get("phenotype_id", "unknown:unknown"),
+                    "namespace": "hp",  # Human Phenotype Ontology
+                    "identifier": record.get("phenotype_id", "unknown"),
+                },
+                "frequency": record.get("frequency"),
+                "evidence_count": record.get("evidence_count", 0),
+            }
+        )
 
     return phenotypes
 
 
-def _parse_drug_therapies(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_drug_therapies(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse drug therapy data from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     drugs = []
     for record in data["records"]:
-        drugs.append({
-            "drug": {
-                "name": record.get("drug", "Unknown"),
-                "curie": record.get("drug_id", "unknown:unknown"),
-                "namespace": "chembl",
-                "identifier": record.get("drug_id", "unknown"),
-            },
-            "indication_type": record.get("indication_type", "unknown"),
-            "max_phase": record.get("max_phase"),
-            "status": record.get("status"),
-        })
+        drugs.append(
+            {
+                "drug": {
+                    "name": record.get("drug", "Unknown"),
+                    "curie": record.get("drug_id", "unknown:unknown"),
+                    "namespace": "chembl",
+                    "identifier": record.get("drug_id", "unknown"),
+                },
+                "indication_type": record.get("indication_type", "unknown"),
+                "max_phase": record.get("max_phase"),
+                "status": record.get("status"),
+            }
+        )
 
     return drugs
 
 
-def _parse_clinical_trials(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_clinical_trials(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse clinical trial data from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
@@ -445,31 +442,35 @@ def _parse_clinical_trials(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     trials = []
     for record in data["records"]:
         nct_id = record.get("nct_id", "unknown")
-        trials.append({
-            "nct_id": nct_id,
-            "title": record.get("title", "Unknown Trial"),
-            "phase": record.get("phase"),
-            "status": record.get("status", "unknown"),
-            "url": f"https://clinicaltrials.gov/ct2/show/{nct_id}",
-        })
+        trials.append(
+            {
+                "nct_id": nct_id,
+                "title": record.get("title", "Unknown Trial"),
+                "phase": record.get("phase"),
+                "status": record.get("status", "unknown"),
+                "url": f"https://clinicaltrials.gov/ct2/show/{nct_id}",
+            }
+        )
 
     return trials
 
 
-def _parse_disease_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_disease_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse disease list from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     diseases = []
     for record in data["records"]:
-        diseases.append({
-            "name": record.get("disease", "Unknown"),
-            "curie": record.get("disease_id", "unknown:unknown"),
-            "namespace": "mondo",
-            "identifier": record.get("disease_id", "unknown"),
-            "description": record.get("description"),
-        })
+        diseases.append(
+            {
+                "name": record.get("disease", "Unknown"),
+                "curie": record.get("disease_id", "unknown:unknown"),
+                "namespace": "mondo",
+                "identifier": record.get("disease_id", "unknown"),
+                "description": record.get("description"),
+            }
+        )
 
     return diseases
 

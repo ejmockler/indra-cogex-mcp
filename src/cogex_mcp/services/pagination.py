@@ -4,7 +4,8 @@ Pagination service for consistent pagination across all tools.
 Provides standard pagination metadata and helpers.
 """
 
-from typing import Any, List
+from typing import Any
+
 from cogex_mcp.schemas import PaginatedResponse
 
 
@@ -17,7 +18,7 @@ class PaginationService:
 
     @staticmethod
     def paginate(
-        items: List[Any],
+        items: list[Any],
         total_count: int,
         offset: int,
         limit: int,
@@ -49,10 +50,10 @@ class PaginationService:
 
     @staticmethod
     def slice_results(
-        items: List[Any],
+        items: list[Any],
         offset: int,
         limit: int,
-    ) -> List[Any]:
+    ) -> list[Any]:
         """
         Slice list to pagination window.
 

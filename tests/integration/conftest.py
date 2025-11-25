@@ -7,12 +7,11 @@ Provides fixtures for:
 - Async test setup/teardown with proper connection cleanup
 """
 
-import pytest
-import asyncio
-from typing import Dict, List
 import logging
 
-from cogex_mcp.clients.adapter import get_adapter, close_adapter, ClientAdapter
+import pytest
+
+from cogex_mcp.clients.adapter import ClientAdapter, close_adapter, get_adapter
 from cogex_mcp.config import settings
 
 logger = logging.getLogger(__name__)
@@ -68,7 +67,7 @@ async def integration_adapter() -> ClientAdapter:
 
 
 @pytest.fixture(scope="session")
-def known_entities() -> Dict[str, List[str]]:
+def known_entities() -> dict[str, list[str]]:
     """
     Known-good entities for testing across all tools.
 
@@ -81,28 +80,26 @@ def known_entities() -> Dict[str, List[str]]:
     return {
         # Genes - well-studied with rich annotations
         "genes": [
-            "TP53",      # Tumor suppressor - most studied gene
-            "BRCA1",     # Breast cancer gene
-            "EGFR",      # Receptor tyrosine kinase
-            "MAPK1",     # MAP kinase
-            "TNF",       # Cytokine
-            "IL6",       # Interleukin
-            "KRAS",      # Oncogene
-            "MYC",       # Transcription factor
-            "BCL2",      # Apoptosis regulator
-            "PTEN",      # Tumor suppressor
+            "TP53",  # Tumor suppressor - most studied gene
+            "BRCA1",  # Breast cancer gene
+            "EGFR",  # Receptor tyrosine kinase
+            "MAPK1",  # MAP kinase
+            "TNF",  # Cytokine
+            "IL6",  # Interleukin
+            "KRAS",  # Oncogene
+            "MYC",  # Transcription factor
+            "BCL2",  # Apoptosis regulator
+            "PTEN",  # Tumor suppressor
         ],
-
         # Drugs - FDA approved with known targets
         "drugs": [
-            "imatinib",        # BCR-ABL inhibitor
-            "aspirin",         # NSAID
-            "pembrolizumab",   # PD-1 inhibitor
-            "metformin",       # Diabetes drug
-            "paclitaxel",      # Chemotherapy
-            "tamoxifen",       # Estrogen receptor modulator
+            "imatinib",  # BCR-ABL inhibitor
+            "aspirin",  # NSAID
+            "pembrolizumab",  # PD-1 inhibitor
+            "metformin",  # Diabetes drug
+            "paclitaxel",  # Chemotherapy
+            "tamoxifen",  # Estrogen receptor modulator
         ],
-
         # Diseases - well-defined in ontologies
         "diseases": [
             "diabetes mellitus",
@@ -112,7 +109,6 @@ def known_entities() -> Dict[str, List[str]]:
             "hypertension",
             "asthma",
         ],
-
         # Tissues - from tissue expression data
         "tissues": [
             "brain",
@@ -123,7 +119,6 @@ def known_entities() -> Dict[str, List[str]]:
             "blood",
             "muscle",
         ],
-
         # Pathways - major signaling pathways
         "pathways": [
             "p53 signaling",
@@ -132,7 +127,6 @@ def known_entities() -> Dict[str, List[str]]:
             "apoptosis",
             "cell cycle",
         ],
-
         # GO terms - biological processes
         "go_terms": [
             "GO:0006915",  # apoptotic process
@@ -140,30 +134,26 @@ def known_entities() -> Dict[str, List[str]]:
             "GO:0006468",  # protein phosphorylation
             "GO:0006355",  # regulation of DNA-templated transcription
         ],
-
         # Cell lines - CCLE/DepMap
         "cell_lines": [
-            "A549",    # Lung cancer
-            "MCF7",    # Breast cancer
-            "HeLa",    # Cervical cancer
+            "A549",  # Lung cancer
+            "MCF7",  # Breast cancer
+            "HeLa",  # Cervical cancer
             "HCT116",  # Colon cancer
-            "K562",    # Leukemia
+            "K562",  # Leukemia
         ],
-
         # Variants - well-known SNPs
         "variants": [
-            "rs7412",   # APOE variant
-            "rs429358", # APOE variant
-            "rs1042522", # TP53 variant
+            "rs7412",  # APOE variant
+            "rs429358",  # APOE variant
+            "rs1042522",  # TP53 variant
         ],
-
         # Phenotypes - HPO terms
         "phenotypes": [
             "HP:0001250",  # Seizure
             "HP:0002664",  # Neoplasm
             "HP:0000822",  # Hypertension
         ],
-
         # Cell types for markers
         "cell_types": [
             "T cell",
@@ -171,13 +161,11 @@ def known_entities() -> Dict[str, List[str]]:
             "NK cell",
             "macrophage",
         ],
-
         # Clinical trial IDs
         "trial_ids": [
             "NCT02576431",
             "NCT01234567",
         ],
-
         # PubMed IDs
         "pmids": [
             "12345678",
@@ -187,7 +175,7 @@ def known_entities() -> Dict[str, List[str]]:
 
 
 @pytest.fixture(scope="session")
-def timeout_configs() -> Dict[str, int]:
+def timeout_configs() -> dict[str, int]:
     """
     Recommended timeout values for different query types.
 
@@ -197,16 +185,16 @@ def timeout_configs() -> Dict[str, int]:
         Dictionary mapping query types to timeout seconds
     """
     return {
-        "simple_lookup": 5,      # Entity resolution, single-hop
-        "feature_query": 15,     # Gene features, pathways, etc.
-        "subnetwork": 30,        # Graph traversals, multiple hops
-        "enrichment": 45,        # Statistical computation
+        "simple_lookup": 5,  # Entity resolution, single-hop
+        "feature_query": 15,  # Gene features, pathways, etc.
+        "subnetwork": 30,  # Graph traversals, multiple hops
+        "enrichment": 45,  # Statistical computation
         "complex_workflow": 60,  # Multi-tool E2E workflows
     }
 
 
 @pytest.fixture
-def test_pagination_params() -> Dict[str, int]:
+def test_pagination_params() -> dict[str, int]:
     """Standard pagination parameters for testing."""
     return {
         "limit": 10,
@@ -228,6 +216,7 @@ async def tool_caller(integration_adapter):
     Yields:
         Async function to call tools
     """
+
     async def call_tool(tool_name: str, **params):
         """
         Call an MCP tool through the adapter.

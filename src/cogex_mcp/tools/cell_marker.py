@@ -10,28 +10,24 @@ Modes:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
-from cogex_mcp.schemas import (
-    CellMarkerQuery,
-    CellMarkerMode,
-    CellMarkerNode,
-    CellTypeNode,
-    EntityRef,
-)
+from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
-    READONLY_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
     CHARACTER_LIMIT,
+    READONLY_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
 )
-from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
+from cogex_mcp.schemas import (
+    CellMarkerMode,
+    CellMarkerQuery,
+)
+from cogex_mcp.server import mcp
+from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +165,7 @@ async def cogex_query_cell_markers(
 async def _get_markers_for_cell_type(
     params: CellMarkerQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_markers
     Get marker genes for a specific cell type.
@@ -232,7 +228,7 @@ async def _get_markers_for_cell_type(
 async def _get_cell_types_for_marker(
     params: CellMarkerQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_cell_types
     Find cell types that express a specific marker gene.
@@ -293,7 +289,7 @@ async def _get_cell_types_for_marker(
 async def _check_marker(
     params: CellMarkerQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: check_marker
     Check if a specific gene is a marker for a specific cell type.
@@ -370,11 +366,11 @@ async def _check_marker(
 
 
 def _parse_cell_type_node(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     cell_type_name: str,
-    tissue: Optional[str],
+    tissue: str | None,
     species: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Parse cell type node from backend response."""
     if not data:
         return {
@@ -392,7 +388,7 @@ def _parse_cell_type_node(
     }
 
 
-def _parse_marker_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_marker_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse marker list from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
@@ -408,33 +404,37 @@ def _parse_marker_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
         if ":" in gene_id:
             namespace, identifier = gene_id.split(":", 1)
 
-        markers.append({
-            "gene": {
-                "name": gene_name,
-                "curie": gene_id,
-                "namespace": namespace,
-                "identifier": identifier,
-            },
-            "marker_type": record.get("marker_type", "unknown"),
-            "evidence": record.get("evidence", "unknown"),
-        })
+        markers.append(
+            {
+                "gene": {
+                    "name": gene_name,
+                    "curie": gene_id,
+                    "namespace": namespace,
+                    "identifier": identifier,
+                },
+                "marker_type": record.get("marker_type", "unknown"),
+                "evidence": record.get("evidence", "unknown"),
+            }
+        )
 
     return markers
 
 
-def _parse_cell_type_list(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _parse_cell_type_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse cell type list from backend response."""
     if not data.get("success") or not data.get("records"):
         return []
 
     cell_types = []
     for record in data["records"]:
-        cell_types.append({
-            "name": record.get("cell_type", record.get("name", "Unknown")),
-            "tissue": record.get("tissue", "unknown"),
-            "species": record.get("species", "human"),
-            "marker_count": record.get("marker_count", 0),
-        })
+        cell_types.append(
+            {
+                "name": record.get("cell_type", record.get("name", "Unknown")),
+                "tissue": record.get("tissue", "unknown"),
+                "species": record.get("species", "human"),
+                "marker_count": record.get("marker_count", 0),
+            }
+        )
 
     return cell_types
 

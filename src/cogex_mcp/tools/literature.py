@@ -11,28 +11,27 @@ Modes:
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from cogex_mcp.server import mcp
+from cogex_mcp.clients.adapter import get_adapter
+from cogex_mcp.constants import (
+    CHARACTER_LIMIT,
+    READONLY_ANNOTATIONS,
+    STANDARD_QUERY_TIMEOUT,
+)
 from cogex_mcp.schemas import (
+    EntityRef,
+    Evidence,
+    IndraStatement,
     LiteratureQuery,
     LiteratureQueryMode,
-    IndraStatement,
-    Publication,
-    Evidence,
-    EntityRef,
     PaginatedResponse,
+    Publication,
 )
-from cogex_mcp.constants import (
-    READONLY_ANNOTATIONS,
-    ResponseFormat,
-    STANDARD_QUERY_TIMEOUT,
-    CHARACTER_LIMIT,
-)
+from cogex_mcp.server import mcp
 from cogex_mcp.services.formatter import get_formatter
-from cogex_mcp.clients.adapter import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +206,7 @@ async def cogex_query_literature(
 async def _get_statements_for_pmid(
     params: LiteratureQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_statements_for_pmid
     Retrieve INDRA statements extracted from a specific PubMed publication.
@@ -254,7 +253,7 @@ async def _get_statements_for_pmid(
 async def _get_evidence_for_statement(
     params: LiteratureQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_evidence_for_statement
     Retrieve evidence text snippets for a specific INDRA statement.
@@ -300,7 +299,7 @@ async def _get_evidence_for_statement(
 async def _search_by_mesh(
     params: LiteratureQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: search_by_mesh
     Search PubMed publications by MeSH terms.
@@ -345,7 +344,7 @@ async def _search_by_mesh(
 async def _get_statements_by_hashes(
     params: LiteratureQuery,
     ctx: Context,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Mode: get_statements_by_hashes
     Batch retrieve INDRA statements by their hashes.
@@ -391,9 +390,9 @@ async def _get_statements_by_hashes(
 
 
 def _parse_statements(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     include_evidence: bool = False,
-) -> List[IndraStatement]:
+) -> list[IndraStatement]:
     """Parse INDRA statements from backend response."""
     if not data.get("success") or not data.get("statements"):
         return []
@@ -432,7 +431,7 @@ def _parse_statements(
     return statements
 
 
-def _parse_evidence(data: Dict[str, Any]) -> List[Evidence]:
+def _parse_evidence(data: dict[str, Any]) -> list[Evidence]:
     """Parse evidence snippets from backend response."""
     if not data.get("success") or not data.get("evidence"):
         return []
@@ -450,7 +449,7 @@ def _parse_evidence(data: Dict[str, Any]) -> List[Evidence]:
     return evidence_list
 
 
-def _parse_publications(data: Dict[str, Any]) -> List[Publication]:
+def _parse_publications(data: dict[str, Any]) -> list[Publication]:
     """Parse PubMed publications from backend response."""
     if not data.get("success") or not data.get("publications"):
         return []
