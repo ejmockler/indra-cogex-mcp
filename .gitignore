@@ -146,9 +146,10 @@ tests/test_results.log
 *.pyc
 .pytest_cache/
 
-# Ad-hoc test scripts (use tests/ directory instead)
-test_*.py
-!tests/**  # But keep tests/ directory
+# Ad-hoc test scripts in root (use tests/ directory instead)
+/test_*.py
+# Allow test files inside tests/ directory
+!tests/**/test_*.py
 
 # Investigation/discovery scripts (archive these instead)
 discover_*.py
