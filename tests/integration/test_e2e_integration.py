@@ -59,7 +59,7 @@ class TestE2EWorkflows:
         )
 
         ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         # Validate response
         assert not result.startswith("Error:"), f"Query failed: {result}"
@@ -123,7 +123,7 @@ class TestE2EWorkflows:
             )
 
             ctx = MockContext()
-            result = await cogex_query_gene_or_feature(query, ctx)
+            result = await cogex_query_gene_or_feature(query)
 
             if not result.startswith("Error:"):
                 try:
@@ -169,7 +169,7 @@ class TestE2EWorkflows:
             response_format=ResponseFormat.JSON,
             limit=3
         )
-        result1 = await cogex_query_gene_or_feature(query1, MockContext())
+        result1 = await cogex_query_gene_or_feature(query1)
         if not result1.startswith("Error:"):
             try:
                 results["symbol"] = json.loads(result1)
@@ -186,7 +186,7 @@ class TestE2EWorkflows:
             response_format=ResponseFormat.JSON,
             limit=3
         )
-        result2 = await cogex_query_gene_or_feature(query2, MockContext())
+        result2 = await cogex_query_gene_or_feature(query2)
         if not result2.startswith("Error:"):
             try:
                 results["curie"] = json.loads(result2)
@@ -239,7 +239,7 @@ class TestE2EWorkflows:
             )
 
             ctx = MockContext()
-            result = await cogex_query_gene_or_feature(query, ctx)
+            result = await cogex_query_gene_or_feature(query)
 
             is_error = result.startswith("Error:")
             results.append((gene, not is_error))
@@ -288,7 +288,7 @@ class TestE2EPhaseValidation:
         )
 
         ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         assert not result.startswith("Error:"), \
             "Phase 1: Symbol resolution should work"
@@ -319,7 +319,7 @@ class TestE2EPhaseValidation:
         )
 
         ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         assert not result.startswith("Error:"), \
             "Phase 1: CURIE resolution should work"
@@ -354,7 +354,7 @@ class TestE2EPhaseValidation:
         )
 
         ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         # Should succeed (would have failed with old schema)
         assert not result.startswith("Error:"), \
@@ -388,7 +388,7 @@ class TestE2EPhaseValidation:
             )
 
             ctx = MockContext()
-            result = await cogex_query_gene_or_feature(query, ctx)
+            result = await cogex_query_gene_or_feature(query)
 
             # Should not crash with None parameter errors
             logger.info("✓ Phase 2: No None parameter crashes")
@@ -419,7 +419,7 @@ class TestE2EProgressReporting:
         )
 
         ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         # Check that progress was reported
         if ctx.progress_history:
@@ -453,7 +453,7 @@ class TestE2EPerformance:
         )
 
         ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         elapsed = time.time() - start
 

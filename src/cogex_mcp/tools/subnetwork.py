@@ -14,12 +14,9 @@ Modes:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
-    READONLY_ANNOTATIONS,
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import (
@@ -30,21 +27,13 @@ from cogex_mcp.schemas import (
     SubnetworkMode,
     SubnetworkQuery,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_extract_subnetwork",
-    annotations=READONLY_ANNOTATIONS,
-)
 async def cogex_extract_subnetwork(
-    params: SubnetworkQuery,
-    ctx: Context,
-) -> str:
+    params: SubnetworkQuery) -> str:
     """
     Extract mechanistic subnetworks from INDRA knowledge graph.
 
@@ -163,19 +152,17 @@ async def cogex_extract_subnetwork(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on mode
         if params.mode == SubnetworkMode.DIRECT:
-            result = await _extract_direct(params, ctx)
+            result = await _extract_direct(params)
         elif params.mode == SubnetworkMode.MEDIATED:
-            result = await _extract_mediated(params, ctx)
+            result = await _extract_mediated(params)
         elif params.mode == SubnetworkMode.SHARED_UPSTREAM:
-            result = await _extract_shared_upstream(params, ctx)
+            result = await _extract_shared_upstream(params)
         elif params.mode == SubnetworkMode.SHARED_DOWNSTREAM:
-            result = await _extract_shared_downstream(params, ctx)
+            result = await _extract_shared_downstream(params)
         elif params.mode == SubnetworkMode.SOURCE_TO_TARGETS:
-            result = await _extract_source_to_targets(params, ctx)
+            result = await _extract_source_to_targets(params)
         else:
             return f"Error: Unknown subnetwork mode '{params.mode}'"
 
@@ -187,7 +174,6 @@ async def cogex_extract_subnetwork(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Subnetwork extraction complete")
         return response
 
     except EntityResolutionError as e:
@@ -198,16 +184,12 @@ async def cogex_extract_subnetwork(
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Mode Implementations
 # ============================================================================
 
-
 async def _extract_direct(
-    params: SubnetworkQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: SubnetworkQuery) -> dict[str, Any]:
     """
     Mode: direct
     Extract direct mechanistic edges between specified genes.
@@ -215,7 +197,7 @@ async def _extract_direct(
     if not params.genes or len(params.genes) < 2:
         raise ValueError("direct mode requires at least 2 genes")
 
-    await ctx.report_progress(0.2, f"Resolving {len(params.genes)} genes...")
+
 
     # Resolve all gene identifiers
     resolver = get_resolver()
@@ -223,9 +205,6 @@ async def _extract_direct(
     for gene in params.genes:
         resolved = await resolver.resolve_gene(gene)
         resolved_genes.append(resolved)
-
-    await ctx.report_progress(0.4, "Querying direct interactions...")
-
     # Query direct interactions
     adapter = await get_adapter()
 
@@ -246,9 +225,6 @@ async def _extract_direct(
         query_params["go_term"] = params.go_filter
 
     stmt_data = await adapter.query("indra_subnetwork", **query_params)
-
-    await ctx.report_progress(0.7, "Processing statements...")
-
     # Parse statements and build network
     statements = _parse_statements(stmt_data, params.include_evidence)
     nodes = _extract_nodes_from_statements(statements, resolved_genes)
@@ -260,11 +236,8 @@ async def _extract_direct(
         "statistics": statistics.model_dump(),
     }
 
-
 async def _extract_mediated(
-    params: SubnetworkQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: SubnetworkQuery) -> dict[str, Any]:
     """
     Mode: mediated
     Find two-hop paths connecting genes through intermediates (A→X→B).
@@ -272,16 +245,13 @@ async def _extract_mediated(
     if not params.genes or len(params.genes) < 2:
         raise ValueError("mediated mode requires at least 2 genes")
 
-    await ctx.report_progress(0.2, f"Resolving {len(params.genes)} genes...")
+
 
     resolver = get_resolver()
     resolved_genes = []
     for gene in params.genes:
         resolved = await resolver.resolve_gene(gene)
         resolved_genes.append(resolved)
-
-    await ctx.report_progress(0.4, "Finding mediated paths...")
-
     adapter = await get_adapter()
 
     query_params = {
@@ -299,9 +269,6 @@ async def _extract_mediated(
         query_params["go_term"] = params.go_filter
 
     stmt_data = await adapter.query("indra_mediated_subnetwork", **query_params)
-
-    await ctx.report_progress(0.7, "Processing mediated paths...")
-
     statements = _parse_statements(stmt_data, params.include_evidence)
     nodes = _extract_nodes_from_statements(statements, resolved_genes)
     statistics = _compute_statistics(nodes, statements)
@@ -313,28 +280,19 @@ async def _extract_mediated(
         "note": "Paths shown are two-hop (gene→intermediate→gene)",
     }
 
-
 async def _extract_shared_upstream(
-    params: SubnetworkQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: SubnetworkQuery) -> dict[str, Any]:
     """
     Mode: shared_upstream
     Find shared regulators (A←X→B).
     """
     if not params.genes or len(params.genes) < 2:
         raise ValueError("shared_upstream mode requires at least 2 genes")
-
-    await ctx.report_progress(0.2, "Resolving genes...")
-
     resolver = get_resolver()
     resolved_genes = []
     for gene in params.genes:
         resolved = await resolver.resolve_gene(gene)
         resolved_genes.append(resolved)
-
-    await ctx.report_progress(0.4, "Finding shared upstream regulators...")
-
     # TODO: Implement when backend query is available
     # For now, return placeholder
     return {
@@ -350,28 +308,19 @@ async def _extract_shared_upstream(
         "note": "Shared upstream queries not yet implemented in backend",
     }
 
-
 async def _extract_shared_downstream(
-    params: SubnetworkQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: SubnetworkQuery) -> dict[str, Any]:
     """
     Mode: shared_downstream
     Find shared targets (A→X←B).
     """
     if not params.genes or len(params.genes) < 2:
         raise ValueError("shared_downstream mode requires at least 2 genes")
-
-    await ctx.report_progress(0.2, "Resolving genes...")
-
     resolver = get_resolver()
     resolved_genes = []
     for gene in params.genes:
         resolved = await resolver.resolve_gene(gene)
         resolved_genes.append(resolved)
-
-    await ctx.report_progress(0.4, "Finding shared downstream targets...")
-
     # TODO: Implement when backend query is available
     # For now, return placeholder
     return {
@@ -387,33 +336,24 @@ async def _extract_shared_downstream(
         "note": "Shared downstream queries not yet implemented in backend",
     }
 
-
 async def _extract_source_to_targets(
-    params: SubnetworkQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: SubnetworkQuery) -> dict[str, Any]:
     """
     Mode: source_to_targets
     Find all downstream targets of a source gene.
     """
     if not params.source_gene:
         raise ValueError("source_to_targets mode requires source_gene parameter")
-
-    await ctx.report_progress(0.2, "Resolving source gene...")
-
     resolver = get_resolver()
     source = await resolver.resolve_gene(params.source_gene)
 
     # Optionally resolve target genes if specified
     target_genes = []
     if params.target_genes:
-        await ctx.report_progress(0.3, f"Resolving {len(params.target_genes)} target genes...")
+
         for gene in params.target_genes:
             resolved = await resolver.resolve_gene(gene)
             target_genes.append(resolved)
-
-    await ctx.report_progress(0.5, f"Finding targets regulated by {source.name}...")
-
     adapter = await get_adapter()
 
     query_params = {
@@ -433,9 +373,6 @@ async def _extract_source_to_targets(
         query_params["go_term"] = params.go_filter
 
     stmt_data = await adapter.query("source_target_analysis", **query_params)
-
-    await ctx.report_progress(0.8, "Processing regulatory network...")
-
     statements = _parse_statements(stmt_data, params.include_evidence)
     all_resolved = [source] + target_genes
     nodes = _extract_nodes_from_statements(statements, all_resolved)
@@ -448,22 +385,25 @@ async def _extract_source_to_targets(
         "statistics": statistics.model_dump(),
     }
 
-
 # ============================================================================
 # Data Parsing Helpers
 # ============================================================================
-
 
 def _parse_statements(
     data: dict[str, Any],
     include_evidence: bool = False,
 ) -> list[IndraStatement]:
     """Parse INDRA statements from backend response."""
-    if not data.get("success") or not data.get("statements"):
+    if not data.get("success"):
+        return []
+
+    # Statements might be in 'records' or 'statements' depending on backend
+    records = data.get("statements") or data.get("records") or []
+    if not records:
         return []
 
     statements = []
-    for record in data["statements"]:
+    for record in records:
         stmt = IndraStatement(
             stmt_hash=record.get("hash", ""),
             stmt_type=record.get("type", "Unknown"),
@@ -489,7 +429,6 @@ def _parse_statements(
         statements.append(stmt)
 
     return statements
-
 
 def _extract_nodes_from_statements(
     statements: list[IndraStatement],
@@ -524,7 +463,6 @@ def _extract_nodes_from_statements(
 
     return list(nodes_dict.values())
 
-
 def _compute_statistics(
     nodes: list[GeneNode],
     statements: list[IndraStatement],
@@ -547,6 +485,5 @@ def _compute_statistics(
         avg_evidence_per_statement=total_evidence / len(statements) if statements else 0.0,
         avg_belief_score=total_belief / len(statements) if statements else 0.0,
     )
-
 
 logger.info("✓ Tool 2 (cogex_extract_subnetwork) registered")

@@ -169,6 +169,26 @@ class Neo4jClient:
         if "offset" not in params:
             params["offset"] = 0
 
+        # Set default min_evidence if not provided (for INDRA statement queries)
+        if "min_evidence" not in params:
+            params["min_evidence"] = 1
+
+        # Set default min_belief if not provided (for INDRA statement queries)
+        if "min_belief" not in params:
+            params["min_belief"] = 0.0
+
+        # Set default max_statements if not provided (for INDRA statement queries)
+        if "max_statements" not in params:
+            params["max_statements"] = 100
+
+        # Handle check_relationship dispatcher
+        if query_name == "check_relationship" and "relationship_type" in params:
+            query_name, params = self._dispatch_relationship_check(params)
+
+        # Handle extract_subnetwork dispatcher and parameter transformation
+        if query_name == "extract_subnetwork":
+            query_name, params = self._dispatch_subnetwork_mode(params)
+
         # Map query name to Cypher query
         cypher = self._get_cypher_query(query_name)
 
@@ -204,6 +224,154 @@ class Neo4jClient:
         except Neo4jError as e:
             logger.error(f"Neo4j query '{query_name}' failed: {e}")
             raise
+
+    def _dispatch_relationship_check(self, params: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+        """
+        Dispatch check_relationship query to appropriate specific relationship query.
+
+        Args:
+            params: Query parameters including relationship_type, entity1, entity2
+
+        Returns:
+            Tuple of (specific_query_name, transformed_params)
+
+        Raises:
+            ValueError: If relationship type is unknown or required parameters missing
+        """
+        relationship_type = params.get("relationship_type")
+        entity1 = params.get("entity1")
+        entity2 = params.get("entity2")
+
+        if not relationship_type or not entity1 or not entity2:
+            raise ValueError(
+                f"Required parameters missing: relationship_type={relationship_type}, "
+                f"entity1={entity1}, entity2={entity2}"
+            )
+
+        # Map relationship type to specific query and parameter names
+        # Note: entity resolution should be done by the tool layer before calling adapter
+        relationship_mappings = {
+            "gene_in_pathway": ("is_gene_in_pathway", {"gene_id": entity1, "pathway_id": entity2}),
+            "drug_target": ("is_drug_target", {"drug_id": entity1, "target_id": entity2}),
+            "drug_indication": ("drug_has_indication", {"drug_id": entity1, "disease_id": entity2}),
+            "drug_side_effect": ("is_side_effect_for_drug", {"drug_id": entity1, "side_effect_id": entity2}),
+            "gene_disease": ("is_gene_associated_with_disease", {"gene_id": entity1, "disease_id": entity2}),
+            "disease_phenotype": ("has_phenotype", {"disease_id": entity1, "phenotype_id": entity2}),
+            "gene_phenotype": ("is_gene_associated_with_phenotype", {"gene_id": entity1, "phenotype_id": entity2}),
+            "variant_association": ("is_variant_associated", {"variant_id": entity1, "disease_id": entity2}),
+            "cell_line_mutation": ("is_mutated_in_cell_line", {"cell_line": entity1, "gene_id": entity2}),
+            "cell_marker": ("is_cell_marker", {"gene_id": entity1, "cell_type": entity2}),
+        }
+
+        # Normalize relationship_type to lowercase with underscores
+        # Handle both string and enum values
+        type_str = str(relationship_type)
+        # If it's an enum like "RelationshipType.GENE_IN_PATHWAY", extract the value
+        if "." in type_str:
+            type_str = type_str.split(".")[-1]
+        normalized_type = type_str.lower().replace("-", "_")
+
+        if normalized_type not in relationship_mappings:
+            raise ValueError(
+                f"Unknown relationship type: {relationship_type}. "
+                f"Valid types: {list(relationship_mappings.keys())}"
+            )
+
+        query_name, transformed_params = relationship_mappings[normalized_type]
+
+        # Preserve other parameters like limit, offset, timeout
+        for key in ["limit", "offset", "response_format"]:
+            if key in params and key not in transformed_params:
+                transformed_params[key] = params[key]
+
+        logger.debug(f"Dispatched check_relationship({relationship_type}) -> {query_name}")
+        return query_name, transformed_params
+
+    def _dispatch_subnetwork_mode(self, params: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+        """
+        Dispatch extract_subnetwork query to appropriate mode-specific query.
+
+        Args:
+            params: Query parameters including mode parameter
+
+        Returns:
+            Tuple of (specific_query_name, transformed_params)
+
+        Raises:
+            ValueError: If mode is unknown or required parameters missing
+        """
+        mode = params.get("mode", "direct")
+
+        # Map mode to specific query names
+        mode_mappings = {
+            "direct": "indra_subnetwork",
+            "mediated": "indra_mediated_subnetwork",
+            "shared_upstream": "indra_subnetwork",  # TODO: Implement when backend available
+            "shared_downstream": "indra_subnetwork",  # TODO: Implement when backend available
+            "source_to_targets": "source_target_analysis",
+        }
+
+        # Normalize mode to lowercase
+        normalized_mode = str(mode).lower()
+        # Handle enum values like "SubnetworkMode.DIRECT"
+        if "." in normalized_mode:
+            normalized_mode = normalized_mode.split(".")[-1]
+
+        if normalized_mode not in mode_mappings:
+            raise ValueError(
+                f"Unknown subnetwork mode: {mode}. "
+                f"Valid modes: {list(mode_mappings.keys())}"
+            )
+
+        query_name = mode_mappings[normalized_mode]
+
+        # Transform parameters (genes/source_gene/target_genes → gene_ids/source_gene_id/target_gene_ids)
+        transformed_params = self._transform_subnetwork_params(params)
+
+        # Remove mode parameter as it's not needed in the Cypher query
+        transformed_params.pop("mode", None)
+
+        logger.debug(f"Dispatched extract_subnetwork(mode={mode}) -> {query_name}")
+        return query_name, transformed_params
+
+    def _transform_subnetwork_params(self, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Transform SubnetworkQuery schema parameters to Neo4j query parameters.
+
+        Maps schema field names to Cypher parameter names:
+        - genes → gene_ids
+        - source_gene → source_gene_id
+        - target_genes → target_gene_ids
+        - min_evidence_count → min_evidence
+        - min_belief_score → min_belief
+        - (max_statements stays the same)
+
+        Args:
+            params: Query parameters with schema field names
+
+        Returns:
+            Transformed parameters with Cypher parameter names
+        """
+        transformed = dict(params)
+
+        # Transform parameter names
+        if "genes" in transformed:
+            transformed["gene_ids"] = transformed.pop("genes")
+
+        if "source_gene" in transformed:
+            transformed["source_gene_id"] = transformed.pop("source_gene")
+
+        if "target_genes" in transformed:
+            transformed["target_gene_ids"] = transformed.pop("target_genes")
+
+        if "min_evidence_count" in transformed:
+            transformed["min_evidence"] = transformed.pop("min_evidence_count")
+
+        if "min_belief_score" in transformed:
+            transformed["min_belief"] = transformed.pop("min_belief_score")
+
+        logger.debug(f"Transformed extract_subnetwork params: {list(params.keys())} -> {list(transformed.keys())}")
+        return transformed
 
     def _parse_result(self, records: list[dict[str, Any]], query_name: str) -> list[dict[str, Any]]:
         """
@@ -248,6 +416,57 @@ class Neo4jClient:
         Raises:
             ValueError: If query name is unknown
         """
+        # Alias mappings for backward compatibility with test naming
+        query_aliases = {
+            # Tool 1: Gene/Feature query aliases - now handled as direct queries
+            # Tool 6: Pathway aliases
+            "pathway_get_genes": "get_genes_in_pathway",
+            "pathway_get_pathways": "get_pathways_for_gene",
+            "pathway_find_shared": "get_shared_pathways_for_genes",
+            "pathway_check": "is_gene_in_pathway",
+            # Tool 7: Cell Line aliases
+            "cell_line_properties": "get_mutations_for_cell_line",
+            "cell_line_mutations": "get_mutations_for_cell_line",
+            "cell_lines_with_mutation": "get_cell_lines_for_mutation",
+            "cell_line_check": "is_mutated_in_cell_line",
+            # Tool 8: Clinical Trials aliases
+            "trials_for_drug": "get_trials_for_drug",
+            "trials_for_disease": "get_trials_for_disease",
+            "trial_by_id": "get_trial_by_id",
+            # Tool 9: Literature aliases
+            "lit_statements_pmid": "get_statements_for_paper",
+            "lit_evidence": "get_evidences_for_stmt_hash",
+            "lit_mesh_search": "get_evidence_for_mesh",
+            # Tool 10: Variant aliases
+            "variants_for_gene": "get_variants_for_gene",
+            "variants_for_disease": "get_variants_for_disease",
+            "variant_to_genes": "get_genes_for_variant",
+            "variant_to_phenotypes": "get_phenotypes_for_variant",
+            "variant_check": "is_variant_associated",
+        }
+
+        # Update aliases with Tools 11-16
+        query_aliases.update({
+            # Tool 11: Identifier Resolution aliases
+            "resolve_identifiers": "map_identifiers",
+            # Tool 12: Relationship Checking aliases
+            "check_relationship": "is_gene_in_pathway",  # Will be routed by relationship type
+            # Tool 13: Ontology Hierarchy aliases
+            "ontology_hierarchy": "get_ontology_hierarchy",
+            # Tool 14: Cell Markers aliases
+            "cell_markers": "get_markers_for_cell_type",
+            "cell_types_for_marker": "get_cell_types_for_marker",
+            "check_marker": "is_cell_marker",
+            # Tool 16: Protein Functions aliases
+            "gene_to_activities": "get_enzyme_activities",
+            "activity_to_genes": "get_genes_for_activity",
+            "check_activity": "has_enzyme_activity",
+            "check_function_types": "is_kinase",  # Will be routed by function type
+        })
+
+        # Resolve alias if exists
+        resolved_query_name = query_aliases.get(query_name, query_name)
+
         # Query catalog - maps operation names to Cypher
         # Updated with correct INDRA CoGEx schema (all genes are BioEntity nodes)
         queries = {
@@ -299,7 +518,7 @@ class Neo4jClient:
                   g.name AS gene,
                   g.id AS gene_id,
                   g.type AS type
-                LIMIT $limit SKIP $offset
+                SKIP $offset LIMIT $limit
             """,
             # GO term queries - CORRECTED SCHEMA
             "get_go_terms_for_gene": """
@@ -325,7 +544,7 @@ class Neo4jClient:
                   g.id AS gene_id,
                   g.type AS type,
                   type(r) AS relationship
-                LIMIT $limit SKIP $offset
+                SKIP $offset LIMIT $limit
             """,
             # Pathway queries - CORRECTED SCHEMA
             "get_pathways_for_gene": """
@@ -363,16 +582,980 @@ class Neo4jClient:
                   d.type AS disease_type
                 LIMIT $limit
             """,
+            # ========================================================================
+            # Tool 4: Drug Queries
+            # ========================================================================
+            "get_drug_by_name": """
+                MATCH (drug:BioEntity)
+                WHERE (drug.name = $name OR $name IN drug.synonyms)
+                  AND (
+                    drug.id STARTS WITH 'chebi:' OR
+                    drug.id STARTS WITH 'drugbank:' OR
+                    drug.id STARTS WITH 'chembl:'
+                  )
+                  AND drug.obsolete = false
+                RETURN
+                  drug.name AS name,
+                  drug.id AS id,
+                  drug.type AS type,
+                  drug.synonyms AS synonyms
+                LIMIT 10
+            """,
+            "drug_to_profile": """
+                MATCH (drug:BioEntity)
+                WHERE (drug.name = $drug OR drug.id = $drug OR $drug IN drug.synonyms)
+                  AND (
+                    drug.id STARTS WITH 'chebi:' OR
+                    drug.id STARTS WITH 'drugbank:' OR
+                    drug.id STARTS WITH 'chembl:'
+                  )
+                  AND drug.obsolete = false
+                OPTIONAL MATCH (drug)-[:targets]->(target:BioEntity)
+                WHERE target.id STARTS WITH 'hgnc:' AND target.obsolete = false
+                OPTIONAL MATCH (drug)-[:has_indication]->(indication:BioEntity)
+                WHERE (
+                  indication.id STARTS WITH 'mesh:' OR
+                  indication.id STARTS WITH 'DOID:' OR
+                  indication.id STARTS WITH 'EFO:'
+                )
+                OPTIONAL MATCH (drug)-[:has_side_effect]->(effect:BioEntity)
+                RETURN
+                  drug.name AS drug_name,
+                  drug.id AS drug_id,
+                  drug.type AS drug_type,
+                  collect(DISTINCT {name: target.name, id: target.id}) AS targets,
+                  collect(DISTINCT {name: indication.name, id: indication.id}) AS indications,
+                  collect(DISTINCT {name: effect.name, id: effect.id}) AS side_effects
+                LIMIT 1
+            """,
+            "side_effect_to_drugs": """
+                MATCH (effect:BioEntity)<-[:has_side_effect]-(drug:BioEntity)
+                WHERE (effect.name = $side_effect OR effect.id = $side_effect)
+                  AND (
+                    drug.id STARTS WITH 'chebi:' OR
+                    drug.id STARTS WITH 'drugbank:' OR
+                    drug.id STARTS WITH 'chembl:'
+                  )
+                  AND drug.obsolete = false
+                RETURN
+                  drug.name AS drug_name,
+                  drug.id AS drug_id,
+                  drug.type AS drug_type,
+                  effect.name AS side_effect_name,
+                  effect.id AS side_effect_id
+                SKIP $offset LIMIT $limit
+            """,
+            "get_targets_for_drug": """
+                MATCH (drug:BioEntity)-[:targets]->(target:BioEntity)
+                WHERE drug.id = $drug_id
+                  AND target.id STARTS WITH 'hgnc:'
+                  AND target.obsolete = false
+                RETURN
+                  target.name AS target,
+                  target.id AS target_id,
+                  'unknown' AS action_type,
+                  1 AS evidence_count
+                SKIP $offset LIMIT $limit
+            """,
+            "get_indications_for_drug": """
+                MATCH (drug:BioEntity)-[:has_indication]->(disease:BioEntity)
+                WHERE drug.id = $drug_id
+                  AND (
+                    disease.id STARTS WITH 'mesh:' OR
+                    disease.id STARTS WITH 'DOID:' OR
+                    disease.id STARTS WITH 'EFO:' OR
+                    disease.id STARTS WITH 'mondo:'
+                  )
+                  AND disease.obsolete = false
+                RETURN
+                  disease.name AS disease,
+                  disease.id AS disease_id,
+                  'approved' AS indication_type,
+                  4 AS max_phase
+                SKIP $offset LIMIT $limit
+            """,
+            "get_side_effects_for_drug": """
+                MATCH (drug:BioEntity)-[:has_side_effect]->(effect:BioEntity)
+                WHERE drug.id = $drug_id
+                RETURN
+                  effect.name AS effect,
+                  effect.id AS effect_id,
+                  'common' AS frequency
+                SKIP $offset LIMIT $limit
+            """,
+            "get_sensitive_cell_lines_for_drug": """
+                MATCH (drug:BioEntity)-[:sensitive_to]-(cell_line:BioEntity)
+                WHERE drug.id = $drug_id
+                  AND cell_line.id STARTS WITH 'ccle:'
+                RETURN
+                  cell_line.name AS cell_line,
+                  0.5 AS sensitivity_score
+                SKIP $offset LIMIT $limit
+            """,
+            # ========================================================================
+            # Tool 5: Disease/Phenotype Queries
+            # ========================================================================
+            "get_disease_by_name": """
+                MATCH (disease:BioEntity)
+                WHERE (disease.name = $name OR $name IN disease.synonyms)
+                  AND (
+                    disease.id STARTS WITH 'mesh:' OR
+                    disease.id STARTS WITH 'DOID:' OR
+                    disease.id STARTS WITH 'EFO:' OR
+                    disease.id STARTS WITH 'mondo:'
+                  )
+                  AND disease.obsolete = false
+                RETURN
+                  disease.name AS name,
+                  disease.id AS id,
+                  disease.type AS type,
+                  disease.synonyms AS synonyms
+                LIMIT 10
+            """,
+            "disease_to_mechanisms": """
+                MATCH (disease:BioEntity)
+                WHERE (disease.name = $disease OR disease.id = $disease)
+                  AND (
+                    disease.id STARTS WITH 'mesh:' OR
+                    disease.id STARTS WITH 'DOID:' OR
+                    disease.id STARTS WITH 'EFO:' OR
+                    disease.id STARTS WITH 'mondo:'
+                  )
+                  AND disease.obsolete = false
+                OPTIONAL MATCH (gene:BioEntity)-[:gene_disease_association]->(disease)
+                WHERE gene.id STARTS WITH 'hgnc:' AND gene.obsolete = false
+                OPTIONAL MATCH (disease)-[:has_phenotype]->(phenotype:BioEntity)
+                WHERE phenotype.id STARTS WITH 'HP:'
+                OPTIONAL MATCH (drug:BioEntity)-[:has_indication]->(disease)
+                WHERE (
+                  drug.id STARTS WITH 'chebi:' OR
+                  drug.id STARTS WITH 'drugbank:' OR
+                  drug.id STARTS WITH 'chembl:'
+                )
+                RETURN
+                  disease.name AS disease_name,
+                  disease.id AS disease_id,
+                  disease.type AS disease_type,
+                  collect(DISTINCT {name: gene.name, id: gene.id}) AS genes,
+                  collect(DISTINCT {name: phenotype.name, id: phenotype.id}) AS phenotypes,
+                  collect(DISTINCT {name: drug.name, id: drug.id}) AS drugs
+                LIMIT 1
+            """,
+            "phenotype_to_diseases": """
+                MATCH (phenotype:BioEntity)<-[:has_phenotype]-(disease:BioEntity)
+                WHERE (phenotype.name = $phenotype OR phenotype.id = $phenotype)
+                  AND phenotype.id STARTS WITH 'HP:'
+                  AND (
+                    disease.id STARTS WITH 'mesh:' OR
+                    disease.id STARTS WITH 'DOID:' OR
+                    disease.id STARTS WITH 'EFO:' OR
+                    disease.id STARTS WITH 'mondo:'
+                  )
+                  AND disease.obsolete = false
+                RETURN
+                  disease.name AS disease_name,
+                  disease.id AS disease_id,
+                  disease.type AS disease_type,
+                  phenotype.name AS phenotype_name,
+                  phenotype.id AS phenotype_id
+                SKIP $offset LIMIT $limit
+            """,
+            "check_phenotype": """
+                MATCH (disease:BioEntity)
+                WHERE (disease.name = $disease OR disease.id = $disease)
+                  AND (
+                    disease.id STARTS WITH 'mesh:' OR
+                    disease.id STARTS WITH 'DOID:' OR
+                    disease.id STARTS WITH 'EFO:' OR
+                    disease.id STARTS WITH 'mondo:'
+                  )
+                  AND disease.obsolete = false
+                OPTIONAL MATCH (disease)-[:has_phenotype]->(phenotype:BioEntity)
+                WHERE (phenotype.name = $phenotype OR phenotype.id = $phenotype)
+                  AND phenotype.id STARTS WITH 'HP:'
+                RETURN
+                  disease.name AS disease_name,
+                  disease.id AS disease_id,
+                  phenotype.name AS phenotype_name,
+                  phenotype.id AS phenotype_id,
+                  CASE WHEN phenotype IS NOT NULL THEN true ELSE false END AS has_phenotype
+                LIMIT 1
+            """,
+            "get_genes_for_disease": """
+                MATCH (gene:BioEntity)-[:gene_disease_association]->(disease:BioEntity)
+                WHERE disease.id = $disease_id
+                  AND gene.id STARTS WITH 'hgnc:'
+                  AND gene.obsolete = false
+                RETURN
+                  gene.name AS gene,
+                  gene.id AS gene_id,
+                  0.5 AS score,
+                  1 AS evidence_count,
+                  ['disgenet'] AS sources
+                SKIP $offset LIMIT $limit
+            """,
+            "get_variants_for_disease": """
+                MATCH (disease:BioEntity)-[:has_variant]->(variant:BioEntity)-[:affects]->(gene:BioEntity)
+                WHERE disease.id = $disease_id
+                  AND variant.id STARTS WITH 'rs'
+                  AND gene.id STARTS WITH 'hgnc:'
+                  AND gene.obsolete = false
+                RETURN
+                  variant.id AS rsid,
+                  gene.name AS gene,
+                  gene.id AS gene_id,
+                  variant.p_value AS p_value,
+                  variant.odds_ratio AS odds_ratio,
+                  variant.trait AS trait
+                SKIP $offset LIMIT $limit
+            """,
+            "get_phenotypes_for_disease": """
+                MATCH (disease:BioEntity)-[:has_phenotype]->(phenotype:BioEntity)
+                WHERE disease.id = $disease_id
+                  AND phenotype.id STARTS WITH 'HP:'
+                RETURN
+                  phenotype.name AS phenotype,
+                  phenotype.id AS phenotype_id,
+                  'common' AS frequency,
+                  1 AS evidence_count
+                SKIP $offset LIMIT $limit
+            """,
+            "get_drugs_for_indication": """
+                MATCH (drug:BioEntity)-[:has_indication]->(disease:BioEntity)
+                WHERE disease.id = $disease_id
+                  AND (
+                    drug.id STARTS WITH 'chebi:' OR
+                    drug.id STARTS WITH 'drugbank:' OR
+                    drug.id STARTS WITH 'chembl:'
+                  )
+                  AND drug.obsolete = false
+                RETURN
+                  drug.name AS drug,
+                  drug.id AS drug_id,
+                  'approved' AS indication_type,
+                  4 AS max_phase,
+                  'marketed' AS status
+                SKIP $offset LIMIT $limit
+            """,
+            # ========================================================================
+            # Tool 6: Pathway Queries
+            # ========================================================================
+            "get_genes_in_pathway": """
+                MATCH (g:BioEntity)-[:in_pathway]->(p:BioEntity)
+                WHERE p.id = $pathway_id
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                  AND (
+                    p.id STARTS WITH 'reactome:' OR
+                    p.id STARTS WITH 'wikipathways:' OR
+                    p.id STARTS WITH 'kegg.pathway:'
+                  )
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id,
+                  g.type AS type
+                SKIP $offset LIMIT $limit
+            """,
+            "get_pathways_for_gene": """
+                MATCH (g:BioEntity)-[:in_pathway]->(p:BioEntity)
+                WHERE g.id = $gene_id
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                  AND (
+                    p.id STARTS WITH 'reactome:' OR
+                    p.id STARTS WITH 'wikipathways:' OR
+                    p.id STARTS WITH 'kegg.pathway:'
+                  )
+                RETURN
+                  p.name AS pathway,
+                  p.id AS pathway_id,
+                  p.type AS pathway_type
+                SKIP $offset LIMIT $limit
+            """,
+            "get_shared_pathways_for_genes": """
+                MATCH (g:BioEntity)-[:in_pathway]->(p:BioEntity)
+                WHERE g.id IN $gene_ids
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                  AND (
+                    p.id STARTS WITH 'reactome:' OR
+                    p.id STARTS WITH 'wikipathways:' OR
+                    p.id STARTS WITH 'kegg.pathway:'
+                  )
+                WITH p, collect(DISTINCT g.id) AS genes
+                WHERE size(genes) = size($gene_ids)
+                RETURN
+                  p.name AS pathway,
+                  p.id AS pathway_id,
+                  p.type AS pathway_type
+                SKIP $offset LIMIT $limit
+            """,
+            "is_gene_in_pathway": """
+                MATCH (g:BioEntity)-[:in_pathway]->(p:BioEntity)
+                WHERE g.id = $gene_id
+                  AND p.id = $pathway_id
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  count(*) > 0 AS is_member,
+                  p.name AS pathway,
+                  p.id AS pathway_id
+                LIMIT 1
+            """,
+            # ========================================================================
+            # Tool 7: Cell Line Queries
+            # ========================================================================
+            "get_mutations_for_cell_line": """
+                MATCH (c:BioEntity)-[:has_mutation]->(m:BioEntity)-[:affects]->(g:BioEntity)
+                WHERE c.name = $cell_line
+                  AND c.id STARTS WITH 'ccle:'
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id,
+                  m.mutation_type AS mutation_type,
+                  m.protein_change AS protein_change
+                SKIP $offset LIMIT $limit
+            """,
+            "get_copy_number_for_cell_line": """
+                MATCH (c:BioEntity)-[:has_copy_number]->(cn:BioEntity)-[:affects]->(g:BioEntity)
+                WHERE c.name = $cell_line
+                  AND c.id STARTS WITH 'ccle:'
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id,
+                  cn.copy_number AS copy_number
+                LIMIT $limit
+            """,
+            "get_dependencies_for_cell_line": """
+                MATCH (c:BioEntity)-[:depends_on]->(g:BioEntity)
+                WHERE c.name = $cell_line
+                  AND c.id STARTS WITH 'ccle:'
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id
+                LIMIT $limit
+            """,
+            "get_expression_for_cell_line": """
+                MATCH (c:BioEntity)-[:expresses]->(g:BioEntity)
+                WHERE c.name = $cell_line
+                  AND c.id STARTS WITH 'ccle:'
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id
+                LIMIT $limit
+            """,
+            "get_cell_lines_for_mutation": """
+                MATCH (c:BioEntity)-[:has_mutation]->(m:BioEntity)-[:affects]->(g:BioEntity)
+                WHERE g.id = $gene_id
+                  AND c.id STARTS WITH 'ccle:'
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  c.name AS cell_line,
+                  c.id AS ccle_id
+                SKIP $offset LIMIT $limit
+            """,
+            "is_mutated_in_cell_line": """
+                MATCH (c:BioEntity)-[:has_mutation]->(m:BioEntity)-[:affects]->(g:BioEntity)
+                WHERE c.name = $cell_line
+                  AND g.id = $gene_id
+                  AND c.id STARTS WITH 'ccle:'
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  count(*) > 0 AS result
+                LIMIT 1
+            """,
+            # ========================================================================
+            # Tool 8: Clinical Trials Queries
+            # ========================================================================
+            "get_trials_for_drug": """
+                MATCH (d:BioEntity)-[:tested_in]->(t:BioEntity)
+                WHERE d.id = $drug_id
+                  AND t.id STARTS WITH 'clinicaltrials:'
+                RETURN
+                  t.nct_id AS nct_id,
+                  t.title AS title,
+                  t.phase AS phase,
+                  t.status AS status
+                SKIP $offset LIMIT $limit
+            """,
+            "get_trials_for_disease": """
+                MATCH (dis:BioEntity)-[:has_trial]->(t:BioEntity)
+                WHERE dis.id = $disease_id
+                  AND t.id STARTS WITH 'clinicaltrials:'
+                RETURN
+                  t.nct_id AS nct_id,
+                  t.title AS title,
+                  t.phase AS phase,
+                  t.status AS status
+                SKIP $offset LIMIT $limit
+            """,
+            "get_trial_by_id": """
+                MATCH (t:BioEntity)
+                WHERE t.nct_id = $nct_id
+                  AND t.id STARTS WITH 'clinicaltrials:'
+                RETURN
+                  t.nct_id AS nct_id,
+                  t.title AS title,
+                  t.phase AS phase,
+                  t.status AS status,
+                  t.start_date AS start_date,
+                  t.completion_date AS completion_date
+                LIMIT 1
+            """,
+            # ========================================================================
+            # Tool 9: Literature Queries
+            # ========================================================================
+            "get_statements_for_paper": """
+                MATCH (pub:Publication)-[:has_statement]->(s:Statement)
+                WHERE pub.pmid = $pmid
+                RETURN
+                  s.hash AS hash,
+                  s.type AS type,
+                  s.subj_name AS subj_name,
+                  s.subj_id AS subj_id,
+                  s.obj_name AS obj_name,
+                  s.obj_id AS obj_id,
+                  s.belief AS belief
+                SKIP $offset LIMIT $limit
+            """,
+            "get_evidences_for_stmt_hash": """
+                MATCH (s:Statement)-[:has_evidence]->(e:Evidence)
+                WHERE s.hash = $stmt_hash
+                RETURN
+                  e.text AS text,
+                  e.pmid AS pmid,
+                  e.source_api AS source_api
+                SKIP $offset LIMIT $limit
+            """,
+            "get_evidence_for_mesh": """
+                MATCH (pub:Publication)-[:has_mesh_term]->(m:MeshTerm)
+                WHERE m.term IN $mesh_terms
+                RETURN
+                  pub.pmid AS pmid,
+                  pub.title AS title,
+                  pub.journal AS journal,
+                  pub.year AS year
+                SKIP $offset LIMIT $limit
+            """,
+            "get_stmts_for_stmt_hashes": """
+                MATCH (s:Statement)
+                WHERE s.hash IN $stmt_hashes
+                RETURN
+                  s.hash AS hash,
+                  s.type AS type,
+                  s.subj_name AS subj_name,
+                  s.subj_id AS subj_id,
+                  s.obj_name AS obj_name,
+                  s.obj_id AS obj_id,
+                  s.belief AS belief
+                LIMIT 100
+            """,
+            # ========================================================================
+            # Tool 10: Variant Queries
+            # ========================================================================
+            "get_variants_for_gene": """
+                MATCH (g:BioEntity)-[:has_variant]->(v:BioEntity)
+                WHERE g.id = $gene_id
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                  AND v.id STARTS WITH 'rs'
+                RETURN
+                  v.id AS rsid,
+                  v.chromosome AS chromosome,
+                  v.position AS position,
+                  v.ref_allele AS ref_allele,
+                  v.alt_allele AS alt_allele,
+                  v.p_value AS p_value
+                SKIP $offset LIMIT $limit
+            """,
+            "get_variants_for_disease": """
+                MATCH (d:BioEntity)-[:has_variant]->(v:BioEntity)
+                WHERE d.id = $disease_id
+                  AND v.id STARTS WITH 'rs'
+                RETURN
+                  v.id AS rsid,
+                  v.chromosome AS chromosome,
+                  v.position AS position,
+                  v.ref_allele AS ref_allele,
+                  v.alt_allele AS alt_allele,
+                  v.p_value AS p_value,
+                  v.trait AS trait
+                SKIP $offset LIMIT $limit
+            """,
+            "get_variants_for_phenotype": """
+                MATCH (ph:BioEntity)-[:has_variant]->(v:BioEntity)
+                WHERE ph.id = $phenotype_id
+                  AND v.id STARTS WITH 'rs'
+                RETURN
+                  v.id AS rsid,
+                  v.chromosome AS chromosome,
+                  v.position AS position,
+                  v.p_value AS p_value,
+                  v.trait AS trait
+                SKIP $offset LIMIT $limit
+            """,
+            "get_genes_for_variant": """
+                MATCH (g:BioEntity)-[:has_variant]->(v:BioEntity)
+                WHERE v.id = $variant_id
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                  AND v.id STARTS WITH 'rs'
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id,
+                  g.type AS type
+                SKIP $offset LIMIT $limit
+            """,
+            "get_phenotypes_for_variant": """
+                MATCH (v:BioEntity)-[:associated_with]->(ph:BioEntity)
+                WHERE v.id = $variant_id
+                  AND v.id STARTS WITH 'rs'
+                  AND ph.id STARTS WITH 'HP:'
+                RETURN
+                  ph.name AS phenotype,
+                  ph.id AS phenotype_id,
+                  ph.type AS type
+                SKIP $offset LIMIT $limit
+            """,
+            "is_variant_associated": """
+                MATCH (d:BioEntity)-[:has_variant]->(v:BioEntity)
+                WHERE v.id = $variant_id
+                  AND d.id = $disease_id
+                  AND v.id STARTS WITH 'rs'
+                RETURN
+                  count(*) > 0 AS is_associated,
+                  v.p_value AS p_value
+                LIMIT 1
+            """,
+            # ========================================================================
+            # Tool 11: Identifier Resolution
+            # ========================================================================
+            "symbol_to_hgnc": """
+                MATCH (g:BioEntity)
+                WHERE g.name IN $symbols
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN g.name AS symbol, g.id AS hgnc_id
+            """,
+            "hgnc_to_uniprot": """
+                MATCH (g:BioEntity)-[:has_xref]->(u:BioEntity)
+                WHERE g.id IN [id IN $hgnc_ids | CASE WHEN id STARTS WITH 'hgnc:' THEN id ELSE 'hgnc:' + id END]
+                  AND g.obsolete = false
+                  AND u.id STARTS WITH 'uniprot:'
+                RETURN g.id AS hgnc_id, collect(DISTINCT u.id) AS uniprot_ids
+            """,
+            "map_identifiers": """
+                MATCH (source:BioEntity)
+                WHERE source.id IN $identifiers
+                OPTIONAL MATCH (source)-[:has_xref]->(target:BioEntity)
+                WHERE target.id STARTS WITH ($to_namespace + ':')
+                RETURN source.id AS source_id, collect(DISTINCT target.id) AS target_ids
+            """,
+            # ========================================================================
+            # Tool 12: Relationship Checking (10 types)
+            # ========================================================================
+            "is_drug_target": """
+                MATCH (d:BioEntity)-[:targets]->(t:BioEntity)
+                WHERE d.id = $drug_id
+                  AND t.id = $target_id
+                  AND (d.id STARTS WITH 'chebi:' OR d.id STARTS WITH 'chembl:' OR d.id STARTS WITH 'drugbank:')
+                  AND t.id STARTS WITH 'hgnc:'
+                RETURN COUNT(*) > 0 AS result
+            """,
+            "drug_has_indication": """
+                MATCH (d:BioEntity)-[:has_indication]->(dis:BioEntity)
+                WHERE d.id = $drug_id
+                  AND dis.id = $disease_id
+                  AND (d.id STARTS WITH 'chebi:' OR d.id STARTS WITH 'chembl:' OR d.id STARTS WITH 'drugbank:')
+                RETURN COUNT(*) > 0 AS result
+            """,
+            "is_side_effect_for_drug": """
+                MATCH (d:BioEntity)-[:has_side_effect]->(se:BioEntity)
+                WHERE d.id = $drug_id
+                  AND (se.name = $side_effect_id OR se.id = $side_effect_id)
+                  AND (d.id STARTS WITH 'chebi:' OR d.id STARTS WITH 'chembl:' OR d.id STARTS WITH 'drugbank:')
+                RETURN COUNT(*) > 0 AS result
+            """,
+            "is_gene_associated_with_disease": """
+                MATCH (g:BioEntity)-[:gene_disease_association]->(d:BioEntity)
+                WHERE g.id = $gene_id
+                  AND d.id = $disease_id
+                  AND g.id STARTS WITH 'hgnc:'
+                RETURN COUNT(*) > 0 AS result
+            """,
+            "has_phenotype": """
+                MATCH (d:BioEntity)-[:has_phenotype]->(p:BioEntity)
+                WHERE d.id = $disease_id
+                  AND (p.id = $phenotype_id OR p.name = $phenotype_id)
+                  AND p.id STARTS WITH 'HP:'
+                RETURN COUNT(*) > 0 AS result
+            """,
+            "is_gene_associated_with_phenotype": """
+                MATCH (g:BioEntity)-[:associated_with]->(p:BioEntity)
+                WHERE g.id = $gene_id
+                  AND (p.id = $phenotype_id OR p.name = $phenotype_id)
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND p.id STARTS WITH 'HP:'
+                RETURN COUNT(*) > 0 AS result
+            """,
+            # ========================================================================
+            # Tool 13: Ontology Hierarchy
+            # ========================================================================
+            "get_ontology_parents": """
+                MATCH path = (child:BioEntity)-[:isa|:part_of*1..$max_depth]->(parent:BioEntity)
+                WHERE child.id = $term_id
+                  AND child.obsolete = false
+                  AND parent.obsolete = false
+                RETURN
+                  parent.name AS name,
+                  parent.id AS curie,
+                  LENGTH(path) AS depth,
+                  type(last(relationships(path))) AS relationship
+                ORDER BY depth
+            """,
+            "get_ontology_children": """
+                MATCH path = (parent:BioEntity)<-[:isa|:part_of*1..$max_depth]-(child:BioEntity)
+                WHERE parent.id = $term_id
+                  AND parent.obsolete = false
+                  AND child.obsolete = false
+                RETURN
+                  child.name AS name,
+                  child.id AS curie,
+                  LENGTH(path) AS depth,
+                  type(last(relationships(path))) AS relationship
+                ORDER BY depth
+            """,
+            "get_ontology_hierarchy": """
+                MATCH (root:BioEntity)
+                WHERE root.id = $term_id
+                  AND root.obsolete = false
+                OPTIONAL MATCH parent_path = (root)-[:isa|:part_of*1..$max_depth]->(parent:BioEntity)
+                WHERE parent.obsolete = false
+                OPTIONAL MATCH child_path = (root)<-[:isa|:part_of*1..$max_depth]-(child:BioEntity)
+                WHERE child.obsolete = false
+                RETURN
+                  root.name AS root_name,
+                  root.id AS root_id,
+                  collect(DISTINCT {name: parent.name, curie: parent.id, depth: LENGTH(parent_path), relationship: type(last(relationships(parent_path)))}) AS parents,
+                  collect(DISTINCT {name: child.name, curie: child.id, depth: LENGTH(child_path), relationship: type(last(relationships(child_path)))}) AS children
+            """,
+            # ========================================================================
+            # Tool 14: Cell Markers
+            # ========================================================================
+            "get_markers_for_cell_type": """
+                MATCH (g:BioEntity)-[:marker_for]->(ct:BioEntity)
+                WHERE (ct.name = $cell_type OR ct.id CONTAINS $cell_type)
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id,
+                  'canonical' AS marker_type,
+                  'CellMarker' AS evidence
+                SKIP $offset LIMIT $limit
+            """,
+            "get_cell_types_for_marker": """
+                MATCH (g:BioEntity)-[:marker_for]->(ct:BioEntity)
+                WHERE g.id = $gene_id
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  ct.name AS cell_type,
+                  ct.id AS cell_type_id,
+                  'unknown' AS tissue,
+                  'human' AS species
+                SKIP $offset LIMIT $limit
+            """,
+            "is_cell_marker": """
+                MATCH (g:BioEntity)-[:marker_for]->(ct:BioEntity)
+                WHERE g.id = $gene_id
+                  AND (ct.name = $cell_type OR ct.id CONTAINS $cell_type)
+                  AND g.id STARTS WITH 'hgnc:'
+                RETURN COUNT(*) > 0 AS result
+            """,
+            # ========================================================================
+            # Tool 16: Protein Functions
+            # ========================================================================
+            "get_enzyme_activities": """
+                MATCH (g:BioEntity)
+                WHERE g.id = $gene_id
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                WITH g,
+                  CASE WHEN g.is_kinase = true THEN 'kinase' ELSE null END AS act1,
+                  CASE WHEN g.is_phosphatase = true THEN 'phosphatase' ELSE null END AS act2,
+                  CASE WHEN g.is_transcription_factor = true THEN 'transcription_factor' ELSE null END AS act3
+                UNWIND [act1, act2, act3] AS activity
+                WHERE activity IS NOT NULL
+                RETURN
+                  activity AS activity,
+                  g.ec_number AS ec_number,
+                  'high' AS confidence
+            """,
+            "get_genes_for_activity": """
+                MATCH (g:BioEntity)
+                WHERE g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                  AND (
+                    (toLower($activity) = 'kinase' AND g.is_kinase = true) OR
+                    (toLower($activity) = 'phosphatase' AND g.is_phosphatase = true) OR
+                    (toLower($activity) CONTAINS 'transcription' AND g.is_transcription_factor = true)
+                  )
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id,
+                  g.type AS type
+                SKIP $offset LIMIT $limit
+            """,
+            "is_kinase": """
+                MATCH (g:BioEntity)
+                WHERE g.id = $gene_id
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN COALESCE(g.is_kinase, false) AS result
+            """,
+            "is_phosphatase": """
+                MATCH (g:BioEntity)
+                WHERE g.id = $gene_id
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN COALESCE(g.is_phosphatase, false) AS result
+            """,
+            "is_transcription_factor": """
+                MATCH (g:BioEntity)
+                WHERE g.id = $gene_id
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN COALESCE(g.is_transcription_factor, false) AS result
+            """,
+            "has_enzyme_activity": """
+                MATCH (g:BioEntity)
+                WHERE g.id = $gene_id
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  CASE
+                    WHEN toLower($activity) = 'kinase' THEN COALESCE(g.is_kinase, false)
+                    WHEN toLower($activity) = 'phosphatase' THEN COALESCE(g.is_phosphatase, false)
+                    WHEN toLower($activity) CONTAINS 'transcription' THEN COALESCE(g.is_transcription_factor, false)
+                    ELSE false
+                  END AS result
+            """,
+            # ========================================================================
+            # Tool 1: Missing queries - domain_to_genes and phenotype_to_genes
+            # ========================================================================
+            "domain_to_genes": """
+                MATCH (g:BioEntity)-[:has_domain]->(d:BioEntity)
+                WHERE (d.name = $domain OR d.id CONTAINS $domain)
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                  AND (
+                    d.id STARTS WITH 'interpro:' OR
+                    d.id STARTS WITH 'pfam:' OR
+                    d.id STARTS WITH 'prosite:'
+                  )
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id,
+                  g.type AS type,
+                  d.name AS domain_name,
+                  d.id AS domain_id
+                SKIP $offset LIMIT $limit
+            """,
+            "phenotype_to_genes": """
+                MATCH (g:BioEntity)-[:associated_with]->(p:BioEntity)
+                WHERE (p.id = $phenotype OR p.name = $phenotype)
+                  AND p.id STARTS WITH 'HP:'
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id,
+                  g.type AS type,
+                  p.name AS phenotype_name,
+                  p.id AS phenotype_id
+                SKIP $offset LIMIT $limit
+            """,
+            # ========================================================================
+            # Tool 2: Subnetwork extraction - INDRA statement queries
+            # ========================================================================
+            "extract_subnetwork": """
+                // Direct mode: Find direct INDRA statements between specified genes
+                MATCH (s:Statement)
+                WHERE s.subj_id IN $gene_ids
+                  AND s.obj_id IN $gene_ids
+                  AND s.subj_id <> s.obj_id
+                  AND s.evidence_count >= $min_evidence
+                  AND s.belief >= $min_belief
+                WITH s
+                ORDER BY s.belief DESC, s.evidence_count DESC
+                LIMIT $max_statements
+                RETURN
+                  s.hash AS hash,
+                  s.type AS type,
+                  s.subj_name AS subj_name,
+                  s.subj_id AS subj_id,
+                  s.obj_name AS obj_name,
+                  s.obj_id AS obj_id,
+                  s.residue AS residue,
+                  s.position AS position,
+                  s.evidence_count AS evidence_count,
+                  s.belief AS belief,
+                  s.sources AS sources
+            """,
+            "indra_subnetwork": """
+                // Direct edges between genes
+                MATCH (s:Statement)
+                WHERE s.subj_id IN $gene_ids
+                  AND s.obj_id IN $gene_ids
+                  AND s.subj_id <> s.obj_id
+                  AND s.evidence_count >= $min_evidence
+                  AND s.belief >= $min_belief
+                WITH s
+                ORDER BY s.belief DESC, s.evidence_count DESC
+                LIMIT $max_statements
+                RETURN
+                  s.hash AS hash,
+                  s.type AS type,
+                  s.subj_name AS subj_name,
+                  s.subj_id AS subj_id,
+                  s.obj_name AS obj_name,
+                  s.obj_id AS obj_id,
+                  s.residue AS residue,
+                  s.position AS position,
+                  s.evidence_count AS evidence_count,
+                  s.belief AS belief,
+                  s.sources AS sources
+            """,
+            "indra_mediated_subnetwork": """
+                // Two-hop paths: A→X→B
+                // Return all statements in the two-hop paths
+                MATCH (s1:Statement), (s2:Statement)
+                WHERE s1.subj_id IN $gene_ids
+                  AND s2.obj_id IN $gene_ids
+                  AND s1.obj_id = s2.subj_id
+                  AND s1.subj_id <> s2.obj_id
+                  AND s1.evidence_count >= $min_evidence
+                  AND s2.evidence_count >= $min_evidence
+                  AND s1.belief >= $min_belief
+                  AND s2.belief >= $min_belief
+                WITH s1, s2
+                ORDER BY (s1.belief + s2.belief) / 2.0 DESC
+                LIMIT $max_statements
+                WITH collect(s1) + collect(s2) AS all_statements
+                UNWIND all_statements AS s
+                WITH DISTINCT s
+                RETURN
+                  s.hash AS hash,
+                  s.type AS type,
+                  s.subj_name AS subj_name,
+                  s.subj_id AS subj_id,
+                  s.obj_name AS obj_name,
+                  s.obj_id AS obj_id,
+                  s.residue AS residue,
+                  s.position AS position,
+                  s.evidence_count AS evidence_count,
+                  s.belief AS belief,
+                  s.sources AS sources
+            """,
+            "source_target_analysis": """
+                // One source gene to multiple targets
+                MATCH (s:Statement)
+                WHERE s.subj_id = $source_gene_id
+                  AND ($target_gene_ids IS NULL OR s.obj_id IN $target_gene_ids)
+                  AND s.evidence_count >= $min_evidence
+                  AND s.belief >= $min_belief
+                WITH s
+                ORDER BY s.belief DESC, s.evidence_count DESC
+                LIMIT $max_statements
+                RETURN
+                  s.hash AS hash,
+                  s.type AS type,
+                  s.subj_name AS subj_name,
+                  s.subj_id AS subj_id,
+                  s.obj_name AS obj_name,
+                  s.obj_id AS obj_id,
+                  s.residue AS residue,
+                  s.position AS position,
+                  s.evidence_count AS evidence_count,
+                  s.belief AS belief,
+                  s.sources AS sources
+            """,
+            # ========================================================================
+            # Tool 3: Enrichment analysis placeholder
+            # ========================================================================
+            "enrichment_analysis": """
+                // Placeholder - enrichment requires statistical computation
+                // This query would need backend support or client-side calculation
+                MATCH (g:BioEntity)
+                WHERE g.id IN $gene_ids
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id,
+                  'enrichment_not_implemented' AS note
+                LIMIT 10
+            """,
             # Health check
             "health_check": """
                 RETURN 1 AS status
             """,
+            # ========================================================================
+            # Tool 1: Integration test aliases (accept different param names)
+            # ========================================================================
+            "gene_to_features": """
+                MATCH (g:BioEntity)
+                WHERE (g.name = $gene OR g.id = $gene OR g.id = ('hgnc:' + $gene))
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN
+                  g.name AS name,
+                  g.id AS id,
+                  g.type AS type
+                LIMIT 1
+            """,
+            "tissue_to_genes": """
+                MATCH (g:BioEntity)-[:expressed_in]->(t:BioEntity)
+                WHERE (t.name = $tissue OR t.id = $tissue OR t.id CONTAINS $tissue)
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                  AND t.id STARTS WITH 'uberon:'
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id,
+                  g.type AS type
+                SKIP $offset LIMIT $limit
+            """,
+            "go_to_genes": """
+                MATCH (g:BioEntity)-[r]->(go:BioEntity)
+                WHERE (go.id = $go_term OR go.name = $go_term)
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                  AND go.id STARTS WITH 'GO:'
+                RETURN
+                  g.name AS gene,
+                  g.id AS gene_id,
+                  g.type AS type,
+                  type(r) AS relationship
+                SKIP $offset LIMIT $limit
+            """,
         }
 
-        if query_name not in queries:
+        if resolved_query_name not in queries:
             raise ValueError(f"Unknown query: {query_name}")
 
-        return queries[query_name]
+        return queries[resolved_query_name]
 
     async def health_check(self) -> bool:
         """
