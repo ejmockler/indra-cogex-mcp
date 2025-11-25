@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     # ========================================================================
 
     use_rest_fallback: bool = Field(
-        default=True,
+        default=False,
         description="Use REST API when Neo4j unavailable",
     )
     rest_api_base: str = Field(
@@ -283,17 +283,20 @@ class Settings(BaseSettings):
             error_msg = [
                 "No backend configured for INDRA CoGEx MCP server.",
                 "",
-                "Please configure credentials using ONE of these methods:",
+                "REQUIRED: Configure Neo4j credentials OR enable REST fallback:",
                 "",
-                "Option 1 - Neo4j Direct Access (Best Performance):",
+                "RECOMMENDED - Neo4j Direct Access (<500ms queries):",
                 "  1. Copy .env.example to .env",
                 "  2. Set NEO4J_URL=bolt://your-server:7687",
                 "  3. Set NEO4J_USER=neo4j",
                 "  4. Set NEO4J_PASSWORD=your_password",
                 "",
-                "Option 2 - REST API Fallback (Public Access):",
+                "FALLBACK - REST API (Public, slower, rate-limited):",
                 "  1. Set USE_REST_FALLBACK=true",
                 "  2. Set REST_API_BASE=https://discovery.indra.bio",
+                "",
+                "Neo4j provides 5-10x better performance than REST API.",
+                "REST should only be used for demos or when Neo4j is unavailable.",
                 "",
             ]
 

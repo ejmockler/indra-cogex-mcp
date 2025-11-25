@@ -36,6 +36,23 @@ cogex-mcp
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
+**Option A: Neo4j Direct Access (Recommended - Best Performance)**
+```json
+{
+  "mcpServers": {
+    "indra-cogex": {
+      "command": "cogex-mcp",
+      "env": {
+        "NEO4J_URL": "bolt://your-server:7687",
+        "NEO4J_USER": "neo4j",
+        "NEO4J_PASSWORD": "your_password"
+      }
+    }
+  }
+}
+```
+
+**Option B: REST API Fallback (Public Access - No Credentials)**
 ```json
 {
   "mcpServers": {
@@ -50,25 +67,29 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 }
 ```
 
-Restart Claude Desktop. For Neo4j access (better performance), add `NEO4J_URL`, `NEO4J_USER`, `NEO4J_PASSWORD` to `env`.
+Restart Claude Desktop after configuration.
 
 ### Cline (VSCode Extension)
 
 Cline has built-in MCP support. Add to VSCode settings or Cline config:
 
+**Recommended: Neo4j Direct Access**
 ```json
 {
   "cline.mcpServers": {
     "indra-cogex": {
       "command": "cogex-mcp",
       "env": {
-        "USE_REST_FALLBACK": "true",
-        "REST_API_BASE": "https://discovery.indra.bio"
+        "NEO4J_URL": "bolt://your-server:7687",
+        "NEO4J_USER": "neo4j",
+        "NEO4J_PASSWORD": "your_password"
       }
     }
   }
 }
 ```
+
+*For REST fallback (slower), set `USE_REST_FALLBACK=true` and `REST_API_BASE=https://discovery.indra.bio` instead.*
 
 **Use case**: Scientific literature review, drug discovery workflows, analyzing gene expression datasets during development.
 
@@ -82,13 +103,16 @@ Add to Zed's MCP settings (`~/.config/zed/settings.json`):
     "indra-cogex": {
       "command": "cogex-mcp",
       "env": {
-        "USE_REST_FALLBACK": "true",
-        "REST_API_BASE": "https://discovery.indra.bio"
+        "NEO4J_URL": "bolt://your-server:7687",
+        "NEO4J_USER": "neo4j",
+        "NEO4J_PASSWORD": "your_password"
       }
     }
   }
 }
 ```
+
+*For REST fallback, set `USE_REST_FALLBACK=true` and `REST_API_BASE` instead of Neo4j credentials.*
 
 **Use case**: Real-time biomedical context while editing research code, inline pathway/disease queries.
 
@@ -103,14 +127,17 @@ Cursor supports MCP through its configuration. Add to Cursor settings:
       "indra-cogex": {
         "command": "cogex-mcp",
         "env": {
-          "USE_REST_FALLBACK": "true",
-          "REST_API_BASE": "https://discovery.indra.bio"
+          "NEO4J_URL": "bolt://your-server:7687",
+          "NEO4J_USER": "neo4j",
+          "NEO4J_PASSWORD": "your_password"
         }
       }
     }
   }
 }
 ```
+
+*For REST fallback, use `USE_REST_FALLBACK=true` and `REST_API_BASE` instead.*
 
 **Use case**: AI-assisted bioinformatics development, automated gene annotation in code comments.
 
@@ -125,13 +152,16 @@ Add to Continue config (`~/.continue/config.json`):
       "name": "indra-cogex",
       "command": "cogex-mcp",
       "env": {
-        "USE_REST_FALLBACK": "true",
-        "REST_API_BASE": "https://discovery.indra.bio"
+        "NEO4J_URL": "bolt://your-server:7687",
+        "NEO4J_USER": "neo4j",
+        "NEO4J_PASSWORD": "your_password"
       }
     }
   ]
 }
 ```
+
+*For REST fallback, use `USE_REST_FALLBACK=true` and `REST_API_BASE` instead.*
 
 **Use case**: Inline documentation generation with biomedical context, research code autocompletion.
 
@@ -143,14 +173,24 @@ Use with any local LLM via Python:
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-# Connect to MCP server
+# Connect to MCP server with Neo4j (recommended)
 server_params = StdioServerParameters(
     command="cogex-mcp",
     env={
-        "USE_REST_FALLBACK": "true",
-        "REST_API_BASE": "https://discovery.indra.bio"
+        "NEO4J_URL": "bolt://your-server:7687",
+        "NEO4J_USER": "neo4j",
+        "NEO4J_PASSWORD": "your_password"
     }
 )
+
+# OR use REST fallback (slower, no credentials needed)
+# server_params = StdioServerParameters(
+#     command="cogex-mcp",
+#     env={
+#         "USE_REST_FALLBACK": "true",
+#         "REST_API_BASE": "https://discovery.indra.bio"
+#     }
+# )
 
 async with stdio_client(server_params) as (read, write):
     async with ClientSession(read, write) as session:
