@@ -1,7 +1,6 @@
 # INDRA CoGEx MCP Server
 
 [![CI](https://github.com/ejmockler/indra-cogex-mcp/workflows/CI/badge.svg)](https://github.com/ejmockler/indra-cogex-mcp/actions)
-[![codecov](https://codecov.io/gh/ejmockler/indra-cogex-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/ejmockler/indra-cogex-mcp)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -31,7 +30,9 @@ cp .env.example .env
 cogex-mcp
 ```
 
-### Claude Desktop Integration
+## MCP Client Integration
+
+### Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
@@ -49,9 +50,139 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 }
 ```
 
-Restart Claude Desktop. No credentials required for REST-only mode.
+Restart Claude Desktop. For Neo4j access (better performance), add `NEO4J_URL`, `NEO4J_USER`, `NEO4J_PASSWORD` to `env`.
 
-For Neo4j access (better performance), add `NEO4J_URL`, `NEO4J_USER`, `NEO4J_PASSWORD` to `env`.
+### Cline (VSCode Extension)
+
+Cline has built-in MCP support. Add to VSCode settings or Cline config:
+
+```json
+{
+  "cline.mcpServers": {
+    "indra-cogex": {
+      "command": "cogex-mcp",
+      "env": {
+        "USE_REST_FALLBACK": "true",
+        "REST_API_BASE": "https://discovery.indra.bio"
+      }
+    }
+  }
+}
+```
+
+**Use case**: Scientific literature review, drug discovery workflows, analyzing gene expression datasets during development.
+
+### Zed Editor
+
+Add to Zed's MCP settings (`~/.config/zed/settings.json`):
+
+```json
+{
+  "context_servers": {
+    "indra-cogex": {
+      "command": "cogex-mcp",
+      "env": {
+        "USE_REST_FALLBACK": "true",
+        "REST_API_BASE": "https://discovery.indra.bio"
+      }
+    }
+  }
+}
+```
+
+**Use case**: Real-time biomedical context while editing research code, inline pathway/disease queries.
+
+### Cursor
+
+Cursor supports MCP through its configuration. Add to Cursor settings:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "indra-cogex": {
+        "command": "cogex-mcp",
+        "env": {
+          "USE_REST_FALLBACK": "true",
+          "REST_API_BASE": "https://discovery.indra.bio"
+        }
+      }
+    }
+  }
+}
+```
+
+**Use case**: AI-assisted bioinformatics development, automated gene annotation in code comments.
+
+### Continue.dev
+
+Add to Continue config (`~/.continue/config.json`):
+
+```json
+{
+  "mcpServers": [
+    {
+      "name": "indra-cogex",
+      "command": "cogex-mcp",
+      "env": {
+        "USE_REST_FALLBACK": "true",
+        "REST_API_BASE": "https://discovery.indra.bio"
+      }
+    }
+  ]
+}
+```
+
+**Use case**: Inline documentation generation with biomedical context, research code autocompletion.
+
+### Local LLMs (Ollama + Python)
+
+Use with any local LLM via Python:
+
+```python
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+# Connect to MCP server
+server_params = StdioServerParameters(
+    command="cogex-mcp",
+    env={
+        "USE_REST_FALLBACK": "true",
+        "REST_API_BASE": "https://discovery.indra.bio"
+    }
+)
+
+async with stdio_client(server_params) as (read, write):
+    async with ClientSession(read, write) as session:
+        # Initialize
+        await session.initialize()
+
+        # List available tools
+        tools = await session.list_tools()
+
+        # Call tool
+        result = await session.call_tool(
+            "cogex_query_gene_or_feature",
+            arguments={
+                "mode": "gene_to_features",
+                "gene": "TP53",
+                "response_format": "json"
+            }
+        )
+```
+
+**Use case**: Custom research pipelines, automated hypothesis generation, local-first biomedical analysis.
+
+### Why Use This MCP for Biomedical Research
+
+**Most powerful for**:
+- **Drug discovery AI agents**: Query drug-target-disease relationships across 28+ databases in one call
+- **Scientific writing assistants**: Evidence-grounded citations, automated literature synthesis
+- **Bioinformatics workflows**: Gene set enrichment, pathway analysis, variant interpretation integrated into code editors
+- **Research automation**: Systematic reviews, hypothesis generation, dataset annotation
+- **Local LLM research**: Privacy-preserving biomedical queries, offline analysis, custom research tools
+
+**Key advantage**: Bidirectional queries mean you can start from any entity (gene, disease, drug, phenotype) and traverse the knowledge graph in both directions—forward and reverse lookups in one unified interface.
 
 ## Available Tools
 
