@@ -1,0 +1,171 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Environment Variables - MCP Security Best Practices
+# NEVER commit credential files
+.env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+htmlcov/
+.tox/
+
+# Type Checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Documentation
+docs/_build/
+docs/.doctrees/
+site/
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.nfs*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Neo4j
+neo4j/
+data/
+
+# Cache
+.cache/
+*.cache
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Build artifacts
+*.whl
+*.tar.gz
+*.zip
+
+# Backup files
+*.backup
+*.bak
+*~.py
+
+# IDEs
+*.sublime-project
+*.sublime-workspace
+
+# Ruff
+.ruff_cache/
+
+# Project-specific
+indra_cogex/  # Local clone of INDRA CoGEx (users clone separately)
+evaluations/results/
+test_outputs/
+
+# Environment files (NEVER commit credentials)
+.env.production
+.env.test
+.env.integration
+
+# Test artifacts
+tests/test_results.log
+*.pyc
+.pytest_cache/
+
+# Ad-hoc test scripts (use tests/ directory instead)
+test_*.py
+!tests/**  # But keep tests/ directory
+
+# Investigation/discovery scripts (archive these instead)
+discover_*.py
+investigate_*.py
+
+# Obsolete documentation (archive instead of committing)
+*_REPORT.md
+*_SUMMARY.md
+*_FINDINGS.md
+*_FIXES.md
+*_FIX_*.md
+*_UPDATE_*.md
+
+# Claude Code artifacts
+.claude/
+claude_*.log
+
+# MCP server runtime
+mcp_server.log
+server_*.log

@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoGEx Cache Performance Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .metric-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+
+        .metric-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .metric-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-right: 15px;
+        }
+
+        .metric-title {
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metric-value {
+            font-size: 42px;
+            font-weight: bold;
+            color: #333;
+            line-height: 1;
+        }
+
+        .metric-change {
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .metric-change.positive {
+            color: #4CAF50;
+        }
+
+        .metric-change.negative {
+            color: #f44336;
+        }
+
+        .chart-section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .chart-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 350px;
+        }
+
+        .recommendations {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .recommendations h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .recommendation-item {
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid;
+            border-radius: 8px;
+            background: #f5f5f5;
+        }
+
+        .recommendation-item.critical {
+            border-color: #f44336;
+            background: #ffebee;
+        }
+
+        .recommendation-item.warning {
+            border-color: #ff9800;
+            background: #fff3e0;
+        }
+
+        .recommendation-item.info {
+            border-color: #2196F3;
+            background: #e3f2fd;
+        }
+
+        .recommendation-item.success {
+            border-color: #4CAF50;
+            background: #e8f5e9;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-badge.excellent {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .status-badge.good {
+            background: #8BC34A;
+            color: white;
+        }
+
+        .status-badge.acceptable {
+            background: #FFC107;
+            color: #333;
+        }
+
+        .status-badge.poor {
+            background: #FF9800;
+            color: white;
+        }
+
+        .status-badge.critical {
+            background: #f44336;
+            color: white;
+        }
+
+        .live-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                <span class="live-indicator"></span>
+                CoGEx Cache Performance Dashboard
+            </h1>
+            <p class="subtitle">Real-time monitoring and analysis | Last updated: <span id="lastUpdate">--</span></p>
+        </header>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                        📊
+                    </div>
+                    <div class="metric-title">Hit Rate</div>
+                </div>
+                <div class="metric-value" id="hitRate">--</div>
+                <div class="metric-change" id="hitRateChange">--</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                        💾
+                    </div>
+                    <div class="metric-title">Cache Size</div>
+                </div>
+                <div class="metric-value" id="cacheSize">--</div>
+                <div class="metric-change" id="cacheSizeChange">--</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                        🧠
+                    </div>
+                    <div class="metric-title">Memory Usage</div>
+                </div>
+                <div class="metric-value" id="memoryUsage">--</div>
+                <div class="metric-change" id="memoryChange">--</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white;">
+                        ⚡
+                    </div>
+                    <div class="metric-title">Performance</div>
+                </div>
+                <div class="metric-value" id="perfScore">--</div>
+                <div class="metric-change" id="perfTier">--</div>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h2>Hit Rate Over Time</h2>
+            <div class="chart-container">
+                <canvas id="hitRateChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h2>Cache Size & Memory Usage</h2>
+            <div class="chart-container">
+                <canvas id="resourceChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h2>Operations Breakdown</h2>
+            <div class="chart-container">
+                <canvas id="operationsChart"></canvas>
+            </div>
+        </div>
+
+        <div class="recommendations">
+            <h2>Optimization Recommendations</h2>
+            <div id="recommendationsList">
+                <div class="recommendation-item info">
+                    <strong>Loading recommendations...</strong>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>CoGEx MCP Server | Cache Performance Monitoring</p>
+            <p style="font-size: 12px; opacity: 0.8; margin-top: 5px;">
+                Powered by INDRA CoGEx | Real-time analytics
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // This is a template - data should be injected dynamically
+        // In production, this would fetch from a live API endpoint
+
+        function updateDashboard(data) {
+            // Update last update time
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+
+            // Update metrics
+            document.getElementById('hitRate').textContent = data.hit_rate.toFixed(1) + '%';
+            document.getElementById('cacheSize').textContent = data.size + '/' + data.max_size;
+            document.getElementById('memoryUsage').textContent = (data.memory_bytes / 1024).toFixed(1) + ' KB';
+            document.getElementById('perfScore').textContent = data.performance_score.toFixed(0);
+
+            // Update performance tier badge
+            const tierBadge = `<span class="status-badge ${data.performance_tier.toLowerCase()}">${data.performance_tier}</span>`;
+            document.getElementById('perfTier').innerHTML = tierBadge;
+
+            // Update recommendations
+            updateRecommendations(data.recommendations);
+        }
+
+        function updateRecommendations(recommendations) {
+            const container = document.getElementById('recommendationsList');
+            container.innerHTML = '';
+
+            recommendations.forEach(rec => {
+                const div = document.createElement('div');
+                div.className = 'recommendation-item ' + getRecType(rec);
+                div.innerHTML = `<strong>${getRecIcon(rec)}</strong> ${rec}`;
+                container.appendChild(div);
+            });
+        }
+
+        function getRecType(rec) {
+            if (rec.includes('CRITICAL')) return 'critical';
+            if (rec.includes('WARNING')) return 'warning';
+            if (rec.includes('optimal')) return 'success';
+            return 'info';
+        }
+
+        function getRecIcon(rec) {
+            if (rec.includes('CRITICAL')) return '🚨';
+            if (rec.includes('WARNING')) return '⚠️';
+            if (rec.includes('optimal')) return '✅';
+            return 'ℹ️';
+        }
+
+        // Initialize charts (placeholder)
+        const hitRateChart = new Chart(document.getElementById('hitRateChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Hit Rate (%)',
+                    data: [],
+                    borderColor: 'rgb(102, 126, 234)',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+
+        const resourceChart = new Chart(document.getElementById('resourceChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Cache Size',
+                        data: [],
+                        borderColor: 'rgb(240, 147, 251)',
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Memory (KB)',
+                        data: [],
+                        borderColor: 'rgb(79, 172, 254)',
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        position: 'left'
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            }
+        });
+
+        const operationsChart = new Chart(document.getElementById('operationsChart'), {
+            type: 'bar',
+            data: {
+                labels: ['Hits', 'Misses', 'Evictions', 'TTL Expirations'],
+                datasets: [{
+                    label: 'Count',
+                    data: [0, 0, 0, 0],
+                    backgroundColor: [
+                        'rgba(76, 175, 80, 0.8)',
+                        'rgba(244, 67, 54, 0.8)',
+                        'rgba(255, 152, 0, 0.8)',
+                        'rgba(33, 150, 243, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

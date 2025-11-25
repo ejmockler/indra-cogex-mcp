@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<evaluation>
+  <metadata>
+    <version>1.0.0</version>
+    <date>2025-11-24</date>
+    <total_questions>10</total_questions>
+    <description>Comprehensive evaluation suite for INDRA CoGEx MCP server testing LLM effectiveness with complex biomedical workflows</description>
+  </metadata>
+
+  <!-- Question 1: Drug-Target-Pathway Integration -->
+  <question id="q1" category="drug-target-pathway" difficulty="hard">
+    <text>
+      Imatinib (Gleevec) is a targeted cancer therapy. Identify all protein targets of imatinib,
+      then find which Reactome pathway contains the most of these targets. For this pathway,
+      extract a regulatory subnetwork showing shared upstream regulators of the imatinib targets.
+      Report: (1) the Reactome pathway ID, (2) number of imatinib targets in this pathway,
+      (3) the top 3 shared upstream regulators by evidence count.
+    </text>
+    <expected_tools>
+      cogex_query_drug_or_effect,
+      cogex_query_pathway,
+      cogex_extract_subnetwork,
+      cogex_check_relationship
+    </expected_tools>
+    <validation_criteria>
+      <criterion type="entity_presence">Response must mention BCR, ABL1, KIT, PDGFR</criterion>
+      <criterion type="pathway_id">Must contain valid Reactome ID format R-HSA-XXXXXXX</criterion>
+      <criterion type="structure">Must report 3 components: pathway ID, target count, regulators</criterion>
+      <criterion type="tool_usage">Must use at least 4 different tools</criterion>
+      <criterion type="numerical_data">Must provide specific counts and IDs</criterion>
+    </validation_criteria>
+    <reference_answer>
+      The primary Reactome pathway is "Signaling by PDGF" (R-HSA-186797) or "Hemostasis" (R-HSA-109582)
+      containing BCR-ABL1, KIT, and PDGFR targets. Top shared upstream regulators typically include
+      SRC family kinases, GRB2, and PI3K pathway components. Expected 3-5 imatinib targets in the
+      primary pathway with regulators showing 10+ evidence counts each.
+    </reference_answer>
+    <estimated_tool_calls>6-8</estimated_tool_calls>
+    <estimated_time_seconds>45-60</estimated_time_seconds>
+  </question>
+
+  <!-- Question 2: Disease-Gene-Variant Association -->
+  <question id="q2" category="disease-gene-variant" difficulty="hard">
+    <text>
+      Alzheimer's disease has a strong genetic component. Find the top 5 genes most strongly
+      associated with Alzheimer's disease by association score. For the highest-scoring gene,
+      identify all GWAS variants with p-value &lt; 1e-8. Then check if the most significant
+      variant (lowest p-value) is also associated with "cardiovascular disease" or "Type 2 diabetes".
+      Report: (1) top gene symbol, (2) its association score, (3) most significant variant rsID,
+      (4) its p-value, (5) whether it's also associated with cardiovascular disease or diabetes (Yes/No/Unknown).
+    </text>
+    <expected_tools>
+      cogex_query_disease_or_phenotype,
+      cogex_query_variants,
+      cogex_check_relationship,
+      cogex_resolve_identifiers
+    </expected_tools>
+    <validation_criteria>
+      <criterion type="entity_presence">Response must mention APOE, APP, PSEN1, or PSEN2</criterion>
+      <criterion type="variant_format">Must contain valid rsID format (rs followed by numbers)</criterion>
+      <criterion type="structure">Must report all 5 components requested</criterion>
+      <criterion type="numerical_precision">P-value must be scientific notation with exponent</criterion>
+      <criterion type="boolean_answer">Must answer Yes/No/Unknown for cross-disease association</criterion>
+    </validation_criteria>
+    <reference_answer>
+      APOE is typically the top-associated gene with score ~0.8-0.95. The most significant variant
+      is rs7412 or rs429358 with p-values around 1e-50 to 1e-100. rs7412 (APOE ε2 allele) is known
+      to be associated with cardiovascular disease and lipid metabolism, so the answer should be "Yes"
+      for cardiovascular disease association.
+    </reference_answer>
+    <estimated_tool_calls>5-7</estimated_tool_calls>
+    <estimated_time_seconds>40-55</estimated_time_seconds>
+  </question>
+
+  <!-- Question 3: Cell Line-Mutation-Drug Sensitivity -->
+  <question id="q3" category="cell-line-mutation-drug" difficulty="hard">
+    <text>
+      The A549 lung cancer cell line is widely used in research. Identify all genes mutated in A549
+      cells, then filter for genes that are kinases. For the top 3 kinases (by mutation evidence or
+      driver status), find drugs that target these kinases. Perform enrichment analysis on the full
+      set of mutated genes to identify overrepresented pathways. Report: (1) list of mutated kinases,
+      (2) at least 2 drugs targeting these kinases, (3) top enriched pathway with p-value.
+    </text>
+    <expected_tools>
+      cogex_query_cell_line,
+      cogex_query_protein_functions,
+      cogex_query_drug_or_effect,
+      cogex_enrichment_analysis,
+      cogex_query_pathway
+    </expected_tools>
+    <validation_criteria>
+      <criterion type="entity_presence">Response should mention KRAS, EGFR, STK11, or other known A549 mutations</criterion>
+      <criterion type="kinase_identification">Must identify specific kinases among mutated genes</criterion>
+      <criterion type="drug_count">Must list at least 2 drugs with targets</criterion>
+      <criterion type="enrichment_data">Must include pathway name and p-value</criterion>
+      <criterion type="tool_usage">Must use at least 5 different tools</criterion>
+    </validation_criteria>
+    <reference_answer>
+      A549 cells have mutations in KRAS (G12S), STK11 (commonly mutated), and potentially EGFR.
+      KRAS and EGFR are kinases. Drugs targeting these include EGFR inhibitors (erlotinib, gefitinib)
+      and KRAS pathway inhibitors. Enrichment typically shows MAPK signaling, RTK signaling, or cell
+      cycle pathways with p-values &lt; 0.001.
+    </reference_answer>
+    <estimated_tool_calls>7-10</estimated_tool_calls>
+    <estimated_time_seconds>60-80</estimated_time_seconds>
+  </question>
+
+  <!-- Question 4: Clinical Trial-Drug-Disease Matching -->
+  <question id="q4" category="clinical-trial-drug-disease" difficulty="medium">
+    <text>
+      Pembrolizumab (Keytruda) is an immunotherapy drug. Find all clinical trials for pembrolizumab
+      that are in Phase 3 or Phase 4 and have status "completed". Identify the top 3 disease
+      indications from these trials. For the most common indication, verify that pembrolizumab is
+      officially indicated for that disease using the relationship check tool. Report: (1) number of
+      Phase 3/4 completed trials, (2) top 3 disease indications, (3) whether pembrolizumab is
+      indicated for the top disease (Yes/No).
+    </text>
+    <expected_tools>
+      cogex_query_clinical_trials,
+      cogex_check_relationship,
+      cogex_query_drug_or_effect
+    </expected_tools>
+    <validation_criteria>
+      <criterion type="numerical_data">Must report specific trial count</criterion>
+      <criterion type="disease_list">Must list 3 disease indications</criterion>
+      <criterion type="entity_presence">Should mention cancer types (melanoma, NSCLC, etc.)</criterion>
+      <criterion type="boolean_answer">Must answer Yes/No for indication verification</criterion>
+      <criterion type="trial_filtering">Must correctly filter by phase and status</criterion>
+    </validation_criteria>
+    <reference_answer>
+      Pembrolizumab has numerous Phase 3/4 completed trials (likely 50+). Top indications include
+      melanoma, non-small cell lung cancer (NSCLC), and head and neck squamous cell carcinoma.
+      Pembrolizumab is FDA-approved (indicated) for melanoma, so the answer should be "Yes".
+    </reference_answer>
+    <estimated_tool_calls>4-6</estimated_tool_calls>
+    <estimated_time_seconds>35-50</estimated_time_seconds>
+  </question>
+
+  <!-- Question 5: Pathway Enrichment Analysis -->
+  <question id="q5" category="pathway-enrichment" difficulty="hard">
+    <text>
+      Consider this gene list from a cancer transcriptomics study: TP53, MDM2, CDKN1A, BAX, PUMA,
+      NOXA, GADD45A, BTG2, FAS, PERP. Perform discrete enrichment analysis using Reactome pathways.
+      Identify the top 3 enriched pathways. For the most significant pathway, extract all genes in
+      that pathway and identify which ones are NOT in the input list but are direct downstream targets
+      of TP53 (using subnetwork extraction). Report: (1) top 3 pathway names with p-values,
+      (2) candidate genes (in pathway, downstream of TP53, not in input list).
+    </text>
+    <expected_tools>
+      cogex_enrichment_analysis,
+      cogex_query_pathway,
+      cogex_extract_subnetwork,
+      cogex_check_relationship
+    </expected_tools>
+    <validation_criteria>
+      <criterion type="enrichment_results">Must list 3 pathways with p-values</criterion>
+      <criterion type="entity_presence">Should mention p53 signaling or apoptosis pathways</criterion>
+      <criterion type="candidate_genes">Must identify specific candidate genes</criterion>
+      <criterion type="tool_usage">Must use enrichment, pathway, and subnetwork tools</criterion>
+      <criterion type="logical_filtering">Genes must satisfy all 3 conditions (in pathway, downstream of TP53, not in input)</criterion>
+    </validation_criteria>
+    <reference_answer>
+      Top enriched pathways should include "TP53 Regulates Transcription of Genes Involved in G1 Cell
+      Cycle Arrest", "Apoptosis", and "Cell Cycle Checkpoints" with p-values &lt; 1e-5. Candidate genes
+      (in pathway, TP53 targets, not in input) might include CDKN2A, RRM2B, SESN1, TIGAR, or other
+      known TP53 transcriptional targets.
+    </reference_answer>
+    <estimated_tool_calls>6-9</estimated_tool_calls>
+    <estimated_time_seconds>55-75</estimated_time_seconds>
+  </question>
+
+  <!-- Question 6: Identifier Resolution Workflow -->
+  <question id="q6" category="identifier-resolution" difficulty="medium">
+    <text>
+      You have these HGNC IDs: HGNC:11998, HGNC:1100, HGNC:3467. Convert them to: (1) gene symbols,
+      (2) UniProt IDs, (3) Ensembl IDs. For the gene with symbol starting with 'T', find its tissue
+      expression profile and identify in how many tissues it's expressed with "gold" confidence.
+      Report: (1) mapping table (HGNC ID → gene symbol → UniProt → Ensembl), (2) which gene starts
+      with 'T', (3) number of tissues with gold confidence expression.
+    </text>
+    <expected_tools>
+      cogex_resolve_identifiers,
+      cogex_query_gene_or_feature
+    </expected_tools>
+    <validation_criteria>
+      <criterion type="mapping_completeness">Must show mappings for all 3 HGNC IDs</criterion>
+      <criterion type="entity_presence">HGNC:11998 is TP53, HGNC:1100 is BRCA1, HGNC:3467 is EGFR</criterion>
+      <criterion type="identifier_format">Must show valid UniProt and Ensembl ID formats</criterion>
+      <criterion type="numerical_data">Must report specific tissue count</criterion>
+      <criterion type="confidence_filtering">Must specifically mention "gold" confidence level</criterion>
+    </validation_criteria>
+    <reference_answer>
+      HGNC:11998 → TP53 → P04637 → ENSG00000141510, HGNC:1100 → BRCA1 → P38398 → ENSG00000012048,
+      HGNC:3467 → EGFR → P00533 → ENSG00000146648. TP53 starts with 'T'. TP53 typically has gold
+      confidence expression in 20-30+ tissues as it's ubiquitously expressed.
+    </reference_answer>
+    <estimated_tool_calls>4-6</estimated_tool_calls>
+    <estimated_time_seconds>30-45</estimated_time_seconds>
+  </question>
+
+  <!-- Question 7: Multi-Evidence Literature Integration -->
+  <question id="q7" category="literature-integration" difficulty="hard">
+    <text>
+      Search for mechanistic statements in the literature about KRAS and RAF1 interactions. Find all
+      INDRA statements where KRAS is the subject and RAF1 is the object (or vice versa). Identify the
+      statement type with the most evidence. For this statement type, get the statement with the highest
+      belief score and retrieve its supporting evidence from PubMed. Report: (1) total number of
+      KRAS-RAF1 statements, (2) most common statement type, (3) highest belief score for that type,
+      (4) at least one PMID providing evidence.
+    </text>
+    <expected_tools>
+      cogex_extract_subnetwork,
+      cogex_query_literature,
+      cogex_check_relationship
+    </expected_tools>
+    <validation_criteria>
+      <criterion type="numerical_data">Must report statement count and belief score</criterion>
+      <criterion type="statement_type">Must identify specific INDRA statement type (Activation, Phosphorylation, etc.)</criterion>
+      <criterion type="pmid_format">Must include valid PMID (8-digit number)</criterion>
+      <criterion type="entity_presence">Must discuss KRAS and RAF1 (or BRAF)</criterion>
+      <criterion type="tool_usage">Must use subnetwork extraction and literature tools</criterion>
+    </validation_criteria>
+    <reference_answer>
+      KRAS and RAF1 typically have 10-30+ statements. Most common type is likely "Activation" or
+      "Complex" formation. Belief scores are typically 0.7-0.99 for well-established interactions.
+      KRAS activates RAF1 is a canonical pathway step with extensive literature support. PMIDs should
+      reference RAS-RAF signaling papers.
+    </reference_answer>
+    <estimated_tool_calls>5-8</estimated_tool_calls>
+    <estimated_time_seconds>50-70</estimated_time_seconds>
+  </question>
+
+  <!-- Question 8: Disease-Gene-Variant Deep Dive -->
+  <question id="q8" category="disease-gene-variant" difficulty="hard">
+    <text>
+      Type 2 diabetes mellitus is a complex metabolic disease. Find all genes associated with Type 2
+      diabetes. Filter for genes that: (1) have association score > 0.5, (2) are expressed in pancreas
+      with at least silver confidence, (3) have at least one GWAS variant with p-value &lt; 5e-8.
+      For the filtered genes, perform GO enrichment analysis to identify overrepresented biological
+      processes. Report: (1) number of genes meeting all 3 criteria, (2) list up to 5 gene symbols,
+      (3) top 2 enriched GO biological processes with adjusted p-values.
+    </text>
+    <expected_tools>
+      cogex_query_disease_or_phenotype,
+      cogex_query_gene_or_feature,
+      cogex_query_variants,
+      cogex_enrichment_analysis
+    </expected_tools>
+    <validation_criteria>
+      <criterion type="filtering_logic">Must apply all 3 filter criteria correctly</criterion>
+      <criterion type="numerical_data">Must report gene count and p-values</criterion>
+      <criterion type="entity_presence">Should mention TCF7L2, PPARG, KCNJ11, or other T2D genes</criterion>
+      <criterion type="enrichment_data">Must show GO terms with adjusted p-values</criterion>
+      <criterion type="tool_usage">Must use at least 4 different tools</criterion>
+    </validation_criteria>
+    <reference_answer>
+      Expected genes include TCF7L2, PPARG, KCNJ11, SLC30A8, IRS1. Typically 10-20 genes meet all
+      criteria. Enriched GO processes should include "insulin secretion", "glucose homeostasis",
+      "regulation of blood glucose level" with adjusted p-values &lt; 0.001. These genes are central
+      to pancreatic beta-cell function.
+    </reference_answer>
+    <estimated_tool_calls>8-12</estimated_tool_calls>
+    <estimated_time_seconds>70-90</estimated_time_seconds>
+  </question>
+
+  <!-- Question 9: Pathway Enrichment with Regulatory Network -->
+  <question id="q9" category="pathway-enrichment" difficulty="hard">
+    <text>
+      Analyze the MAPK signaling pathway. Get all genes in the Reactome MAPK signaling pathway.
+      From these genes, identify which ones are kinases using protein function annotation. For the
+      kinases, extract a mediated subnetwork showing two-hop regulatory paths between them. Find the
+      mediator gene (middle node) that appears most frequently in these two-hop paths. Check if this
+      mediator is itself a kinase. Report: (1) total genes in MAPK pathway, (2) number of kinases,
+      (3) top mediator gene symbol, (4) mediator's frequency count, (5) whether mediator is a kinase (Yes/No).
+    </text>
+    <expected_tools>
+      cogex_query_pathway,
+      cogex_query_protein_functions,
+      cogex_extract_subnetwork,
+      cogex_check_relationship
+    </expected_tools>
+    <validation_criteria>
+      <criterion type="numerical_data">Must report counts for all requested metrics</criterion>
+      <criterion type="entity_presence">Should mention MAPK1, MAPK3, RAF1, MEK, or other MAPK components</criterion>
+      <criterion type="kinase_identification">Must correctly identify kinases using function annotation</criterion>
+      <criterion type="network_analysis">Must identify mediator from two-hop paths</criterion>
+      <criterion type="boolean_answer">Must answer Yes/No for mediator kinase status</criterion>
+    </validation_criteria>
+    <reference_answer>
+      MAPK signaling pathway typically contains 100-300 genes. Kinases include RAF family (RAF1, BRAF),
+      MEK1/2 (MAP2K1/2), and ERK1/2 (MAPK1/3). Common mediators in two-hop paths might be GRB2, SOS1,
+      or RAS family members. GRB2 is NOT a kinase (it's an adaptor), while RAF1 is a kinase. The most
+      frequent mediator depends on network structure but likely shows 5-15+ connections.
+    </reference_answer>
+    <estimated_tool_calls>7-10</estimated_tool_calls>
+    <estimated_time_seconds>60-80</estimated_time_seconds>
+  </question>
+
+  <!-- Question 10: Ontology Navigation with Phenotype Analysis -->
+  <question id="q10" category="ontology-phenotype" difficulty="medium">
+    <text>
+      Start with the Human Phenotype Ontology term "Seizure" (HP:0001250). Navigate the ontology to
+      find all child terms (more specific seizure types) up to 2 levels deep. Count the total number
+      of child terms found. Then, for the parent term "Seizure", find all genes associated with this
+      phenotype. Identify which of these genes are ion channels (using protein function checks).
+      Report: (1) number of child terms found, (2) list up to 5 specific seizure types, (3) total genes
+      associated with "Seizure", (4) number of ion channel genes, (5) list up to 3 ion channel gene symbols.
+    </text>
+    <expected_tools>
+      cogex_get_ontology_hierarchy,
+      cogex_query_gene_or_feature,
+      cogex_query_protein_functions,
+      cogex_check_relationship
+    </expected_tools>
+    <validation_criteria>
+      <criterion type="ontology_navigation">Must correctly traverse HPO hierarchy</criterion>
+      <criterion type="numerical_data">Must report child term count and gene counts</criterion>
+      <criterion type="entity_presence">Should mention specific seizure types and known epilepsy genes</criterion>
+      <criterion type="ion_channel_identification">Must correctly identify ion channels</criterion>
+      <criterion type="tool_usage">Must use ontology, gene, and function tools</criterion>
+    </validation_criteria>
+    <reference_answer>
+      HP:0001250 (Seizure) has many child terms including "Focal seizure", "Generalized seizure",
+      "Febrile seizures", etc. Typically 10-30+ child terms at 2 levels. Associated genes include
+      SCN1A, KCNQ2, GABRG2, etc. Many are ion channels (sodium, potassium, chloride channels).
+      Expected 50-200+ total genes with 15-40 being ion channels. Key ion channel genes: SCN1A,
+      SCN2A, KCNQ2, KCNQ3.
+    </reference_answer>
+    <estimated_tool_calls>6-9</estimated_tool_calls>
+    <estimated_time_seconds>45-65</estimated_time_seconds>
+  </question>
+
+</evaluation>

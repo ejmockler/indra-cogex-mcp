@@ -1,0 +1,319 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "date": "2025-11-24",
+    "description": "Reference answers and validation criteria for INDRA CoGEx MCP evaluation suite"
+  },
+  "questions": {
+    "q1": {
+      "category": "drug-target-pathway",
+      "key_entities": ["BCR", "ABL1", "KIT", "PDGFR", "imatinib"],
+      "expected_pathway_ids": ["R-HSA-186797", "R-HSA-109582", "R-HSA-8866427"],
+      "expected_tools": [
+        "cogex_query_drug_or_effect",
+        "cogex_query_pathway",
+        "cogex_extract_subnetwork",
+        "cogex_check_relationship"
+      ],
+      "min_tool_calls": 6,
+      "max_tool_calls": 10,
+      "validation_patterns": {
+        "reactome_id": "R-HSA-\\d{6,}",
+        "gene_symbols": ["BCR", "ABL1", "KIT", "PDGFR"],
+        "target_count_range": [3, 10]
+      },
+      "scoring_rubric": {
+        "pathway_identification": 25,
+        "target_enumeration": 20,
+        "subnetwork_analysis": 25,
+        "regulator_identification": 20,
+        "biological_reasoning": 10
+      },
+      "min_answer_length": 300,
+      "keywords_required": ["pathway", "target", "regulator", "R-HSA"],
+      "biological_context": "Imatinib is a tyrosine kinase inhibitor primarily targeting BCR-ABL1 in CML, but also inhibits KIT and PDGFR family kinases. These targets converge on proliferation and survival pathways."
+    },
+    "q2": {
+      "category": "disease-gene-variant",
+      "key_entities": ["APOE", "APP", "PSEN1", "PSEN2", "rs7412", "rs429358"],
+      "expected_tools": [
+        "cogex_query_disease_or_phenotype",
+        "cogex_query_variants",
+        "cogex_check_relationship"
+      ],
+      "min_tool_calls": 5,
+      "max_tool_calls": 8,
+      "validation_patterns": {
+        "rsid_format": "rs\\d{6,}",
+        "p_value_format": "\\d\\.\\d+e-\\d+",
+        "association_score_range": [0.0, 1.0],
+        "top_gene": "APOE"
+      },
+      "scoring_rubric": {
+        "gene_identification": 20,
+        "variant_analysis": 30,
+        "cross_disease_check": 20,
+        "data_accuracy": 20,
+        "interpretation": 10
+      },
+      "min_answer_length": 250,
+      "keywords_required": ["APOE", "variant", "p-value", "association", "cardiovascular"],
+      "biological_context": "APOE is the strongest genetic risk factor for late-onset Alzheimer's. The ε4 allele (rs429358) increases risk while ε2 (rs7412) is protective. APOE also affects cardiovascular disease through lipid metabolism."
+    },
+    "q3": {
+      "category": "cell-line-mutation-drug",
+      "key_entities": ["A549", "KRAS", "STK11", "EGFR", "erlotinib", "gefitinib"],
+      "expected_tools": [
+        "cogex_query_cell_line",
+        "cogex_query_protein_functions",
+        "cogex_query_drug_or_effect",
+        "cogex_enrichment_analysis",
+        "cogex_query_pathway"
+      ],
+      "min_tool_calls": 7,
+      "max_tool_calls": 12,
+      "validation_patterns": {
+        "kinase_count_range": [2, 8],
+        "drug_count_min": 2,
+        "p_value_format": "\\d\\.\\d+e?-?\\d*"
+      },
+      "scoring_rubric": {
+        "mutation_identification": 20,
+        "kinase_filtering": 20,
+        "drug_matching": 20,
+        "enrichment_analysis": 25,
+        "integration": 15
+      },
+      "min_answer_length": 350,
+      "keywords_required": ["A549", "kinase", "mutation", "drug", "enrichment", "pathway"],
+      "biological_context": "A549 is a lung adenocarcinoma cell line with KRAS G12S mutation and STK11 loss. These drive MAPK/PI3K signaling and metabolic reprogramming, making them relevant for targeted therapy research."
+    },
+    "q4": {
+      "category": "clinical-trial-drug-disease",
+      "key_entities": ["pembrolizumab", "Keytruda", "melanoma", "NSCLC", "lung cancer"],
+      "expected_tools": [
+        "cogex_query_clinical_trials",
+        "cogex_check_relationship",
+        "cogex_query_drug_or_effect"
+      ],
+      "min_tool_calls": 4,
+      "max_tool_calls": 7,
+      "validation_patterns": {
+        "trial_count_min": 20,
+        "phase_filter": ["3", "4"],
+        "status_filter": "completed"
+      },
+      "scoring_rubric": {
+        "trial_filtering": 25,
+        "indication_identification": 25,
+        "relationship_verification": 25,
+        "data_accuracy": 15,
+        "completeness": 10
+      },
+      "min_answer_length": 200,
+      "keywords_required": ["Phase 3", "Phase 4", "completed", "indication", "pembrolizumab"],
+      "biological_context": "Pembrolizumab is a PD-1 checkpoint inhibitor approved for multiple cancer types. Melanoma was the first FDA approval, followed by NSCLC and many others. It has extensive Phase 3/4 trial data."
+    },
+    "q5": {
+      "category": "pathway-enrichment",
+      "key_entities": ["TP53", "MDM2", "CDKN1A", "BAX", "apoptosis", "cell cycle"],
+      "expected_tools": [
+        "cogex_enrichment_analysis",
+        "cogex_query_pathway",
+        "cogex_extract_subnetwork",
+        "cogex_check_relationship"
+      ],
+      "min_tool_calls": 6,
+      "max_tool_calls": 10,
+      "validation_patterns": {
+        "enrichment_count": 3,
+        "p_value_threshold": 0.001,
+        "candidate_genes_min": 2
+      },
+      "scoring_rubric": {
+        "enrichment_analysis": 25,
+        "pathway_identification": 20,
+        "subnetwork_extraction": 25,
+        "candidate_gene_discovery": 20,
+        "biological_insight": 10
+      },
+      "min_answer_length": 300,
+      "keywords_required": ["enrichment", "p53", "pathway", "downstream", "target"],
+      "biological_context": "This gene set represents classic TP53 transcriptional targets involved in apoptosis and cell cycle arrest. TP53 is activated by stress and coordinates DNA damage response through transcriptional regulation."
+    },
+    "q6": {
+      "category": "identifier-resolution",
+      "key_entities": ["TP53", "BRCA1", "EGFR", "P04637", "P38398", "P00533"],
+      "expected_tools": [
+        "cogex_resolve_identifiers",
+        "cogex_query_gene_or_feature"
+      ],
+      "min_tool_calls": 4,
+      "max_tool_calls": 7,
+      "validation_patterns": {
+        "hgnc_mapping": {
+          "HGNC:11998": "TP53",
+          "HGNC:1100": "BRCA1",
+          "HGNC:3467": "EGFR"
+        },
+        "uniprot_format": "[A-Z]\\d{5}",
+        "ensembl_format": "ENSG\\d{11}",
+        "tissue_count_min": 15
+      },
+      "scoring_rubric": {
+        "identifier_conversion": 30,
+        "mapping_accuracy": 30,
+        "expression_analysis": 25,
+        "data_presentation": 15
+      },
+      "min_answer_length": 250,
+      "keywords_required": ["HGNC", "UniProt", "Ensembl", "TP53", "tissue", "expression"],
+      "biological_context": "TP53 is ubiquitously expressed as it's a critical tumor suppressor. BRCA1 and EGFR have more tissue-specific expression patterns. Identifier conversion is essential for integrating multi-omics data."
+    },
+    "q7": {
+      "category": "literature-integration",
+      "key_entities": ["KRAS", "RAF1", "BRAF", "activation", "complex"],
+      "expected_tools": [
+        "cogex_extract_subnetwork",
+        "cogex_query_literature",
+        "cogex_check_relationship"
+      ],
+      "min_tool_calls": 5,
+      "max_tool_calls": 9,
+      "validation_patterns": {
+        "statement_count_min": 5,
+        "belief_score_range": [0.5, 1.0],
+        "pmid_format": "\\d{8}",
+        "statement_types": ["Activation", "Phosphorylation", "Complex"]
+      },
+      "scoring_rubric": {
+        "statement_retrieval": 25,
+        "evidence_analysis": 25,
+        "literature_integration": 20,
+        "data_interpretation": 20,
+        "citation_quality": 10
+      },
+      "min_answer_length": 250,
+      "keywords_required": ["statement", "belief", "evidence", "PMID", "KRAS", "RAF"],
+      "biological_context": "KRAS-RAF interaction is a canonical step in MAPK signaling. Activated KRAS-GTP binds RAF kinases, recruiting them to the membrane and promoting RAF activation, which then phosphorylates MEK."
+    },
+    "q8": {
+      "category": "disease-gene-variant",
+      "key_entities": ["TCF7L2", "PPARG", "KCNJ11", "SLC30A8", "IRS1", "diabetes"],
+      "expected_tools": [
+        "cogex_query_disease_or_phenotype",
+        "cogex_query_gene_or_feature",
+        "cogex_query_variants",
+        "cogex_enrichment_analysis"
+      ],
+      "min_tool_calls": 8,
+      "max_tool_calls": 14,
+      "validation_patterns": {
+        "association_score_threshold": 0.5,
+        "p_value_threshold": 5e-8,
+        "gene_count_range": [5, 25],
+        "enrichment_terms": ["insulin", "glucose", "secretion"]
+      },
+      "scoring_rubric": {
+        "multi_criteria_filtering": 25,
+        "data_integration": 25,
+        "enrichment_analysis": 20,
+        "biological_interpretation": 20,
+        "complexity_handling": 10
+      },
+      "min_answer_length": 350,
+      "keywords_required": ["diabetes", "pancreas", "variant", "association", "enrichment", "GO"],
+      "biological_context": "Type 2 diabetes involves impaired insulin secretion and insulin resistance. Key genes affect pancreatic beta-cell function (TCF7L2, KCNJ11), insulin signaling (IRS1), or glucose metabolism (SLC30A8)."
+    },
+    "q9": {
+      "category": "pathway-enrichment",
+      "key_entities": ["MAPK1", "MAPK3", "RAF1", "BRAF", "MAP2K1", "MAP2K2", "GRB2"],
+      "expected_tools": [
+        "cogex_query_pathway",
+        "cogex_query_protein_functions",
+        "cogex_extract_subnetwork",
+        "cogex_check_relationship"
+      ],
+      "min_tool_calls": 7,
+      "max_tool_calls": 11,
+      "validation_patterns": {
+        "pathway_gene_count_min": 50,
+        "kinase_count_min": 5,
+        "mediator_frequency_min": 3
+      },
+      "scoring_rubric": {
+        "pathway_analysis": 20,
+        "kinase_identification": 20,
+        "network_topology": 25,
+        "mediator_discovery": 20,
+        "functional_annotation": 15
+      },
+      "min_answer_length": 300,
+      "keywords_required": ["MAPK", "kinase", "pathway", "mediator", "two-hop", "subnetwork"],
+      "biological_context": "MAPK signaling is a three-tiered kinase cascade (RAF→MEK→ERK). Adaptors like GRB2 and SOS1 coordinate signal propagation. Network topology reveals regulatory bottlenecks and crosstalk points."
+    },
+    "q10": {
+      "category": "ontology-phenotype",
+      "key_entities": ["HP:0001250", "SCN1A", "SCN2A", "KCNQ2", "KCNQ3", "GABRG2"],
+      "expected_tools": [
+        "cogex_get_ontology_hierarchy",
+        "cogex_query_gene_or_feature",
+        "cogex_query_protein_functions",
+        "cogex_check_relationship"
+      ],
+      "min_tool_calls": 6,
+      "max_tool_calls": 10,
+      "validation_patterns": {
+        "child_term_count_min": 5,
+        "gene_count_min": 20,
+        "ion_channel_count_min": 5,
+        "seizure_types": ["focal", "generalized", "febrile"]
+      },
+      "scoring_rubric": {
+        "ontology_navigation": 25,
+        "phenotype_gene_mapping": 25,
+        "function_annotation": 20,
+        "ion_channel_identification": 20,
+        "data_integration": 10
+      },
+      "min_answer_length": 250,
+      "keywords_required": ["seizure", "HPO", "ontology", "ion channel", "phenotype"],
+      "biological_context": "Seizures result from neuronal hyperexcitability. Many epilepsy genes encode ion channels (sodium, potassium, chloride) that regulate neuronal excitability. SCN1A mutations cause Dravet syndrome."
+    }
+  },
+  "global_validation": {
+    "tool_usage_minimum": 3,
+    "response_format_required": true,
+    "entity_resolution_required": true,
+    "numerical_precision_required": true,
+    "biological_reasoning_required": true
+  },
+  "scoring_guidelines": {
+    "perfect_score": 100,
+    "passing_threshold": 70,
+    "accuracy_weight": 0.4,
+    "completeness_weight": 0.3,
+    "reasoning_weight": 0.2,
+    "tool_usage_weight": 0.1
+  },
+  "evaluation_metadata": {
+    "total_expected_time_minutes": 90,
+    "average_question_time_seconds": 55,
+    "estimated_total_tool_calls": 65,
+    "difficulty_distribution": {
+      "easy": 0,
+      "medium": 3,
+      "hard": 7
+    },
+    "category_distribution": {
+      "drug-target-pathway": 1,
+      "disease-gene-variant": 2,
+      "cell-line-mutation-drug": 1,
+      "clinical-trial-drug-disease": 1,
+      "pathway-enrichment": 2,
+      "identifier-resolution": 1,
+      "literature-integration": 1,
+      "ontology-phenotype": 1
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "indra-cogex": {
+      "command": "/Users/noot/Documents/indra-cogex-mcp/venv/bin/python3",
+      "args": [
+        "-m",
+        "cogex_mcp.server"
+      ],
+      "env": {
+        "PYTHONPATH": "/Users/noot/Documents/indra-cogex-mcp/src"
+      }
+    }
+  }
+}
