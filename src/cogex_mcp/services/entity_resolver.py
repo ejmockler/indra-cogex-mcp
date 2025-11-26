@@ -228,53 +228,74 @@ class EntityResolver:
         # Handle different identifier formats
         if isinstance(identifier, tuple):
             namespace, drug_id = identifier
-            query_params = {"namespace": namespace, "drug_id": drug_id}
-        elif ":" in identifier:
-            # CURIE format
+            curie = f"{namespace}:{drug_id}"
+            return DrugNode(
+                name=drug_id,
+                curie=curie,
+                namespace=namespace,
+                identifier=drug_id,
+                synonyms=[],
+                drug_type=None,
+            )
+        elif ":" in identifier and not " " in identifier:
+            # CURIE format: "chebi:8863"
             namespace, drug_id = identifier.split(":", 1)
-            query_params = {"namespace": namespace, "drug_id": drug_id}
+            return DrugNode(
+                name=drug_id,
+                curie=identifier,
+                namespace=namespace,
+                identifier=drug_id,
+                synonyms=[],
+                drug_type=None,
+            )
         else:
-            # Assume drug name
-            query_params = {"name": identifier}
+            # Drug name - search database
+            try:
+                result = await adapter.query("search_drug_by_name", name=identifier)
 
-        try:
-            result = await adapter.query("get_drug_by_name", **query_params)
+                if not result.get("success") or not result.get("records"):
+                    raise EntityNotFoundError(
+                        entity=str(identifier),
+                        suggestions=[],
+                    )
 
-            if not result.get("success") or not result.get("records"):
-                raise EntityNotFoundError(
-                    entity=str(identifier),
-                    suggestions=[],
+                records = result["records"]
+
+                # Auto-select best match (sorted by exactness and size)
+                # The ORDER BY in the query prioritizes exact matches first
+                record = records[0]
+
+                # Log if multiple matches found (for debugging)
+                if len(records) > 1:
+                    logger.info(
+                        f"Drug '{identifier}' matched {len(records)} entities, "
+                        f"selecting best match: {record.get('drug_id')}"
+                    )
+
+                # Convert to DrugNode
+                drug_id = record.get("drug_id", "unknown:unknown")
+
+                # Extract namespace from CURIE
+                if ":" in drug_id:
+                    namespace, identifier_part = drug_id.split(":", 1)
+                else:
+                    namespace = "chembl"
+                    identifier_part = drug_id
+
+                return DrugNode(
+                    name=record.get("name", str(identifier)),
+                    curie=drug_id,
+                    namespace=namespace,
+                    identifier=identifier_part,
+                    synonyms=[],
+                    drug_type=None,
                 )
 
-            records = result["records"]
-
-            # Check for ambiguous matches
-            if len(records) > 1:
-                matches = [
-                    {
-                        "name": r.get("name", "Unknown"),
-                        "curie": f"{r.get('namespace', 'unknown')}:{r.get('id', 'unknown')}",
-                    }
-                    for r in records
-                ]
-                raise AmbiguousIdentifierError(identifier=str(identifier), matches=matches)
-
-            # Convert to DrugNode
-            record = records[0]
-            return DrugNode(
-                name=record.get("name", "Unknown"),
-                curie=f"{record.get('namespace', 'chembl')}:{record.get('id', 'unknown')}",
-                namespace=record.get("namespace", "chembl"),
-                identifier=record.get("id", "unknown"),
-                synonyms=record.get("synonyms", []),
-                drug_type=record.get("drug_type"),
-            )
-
-        except (EntityNotFoundError, AmbiguousIdentifierError):
-            raise
-        except Exception as e:
-            logger.error(f"Error resolving drug {identifier}: {e}")
-            raise EntityResolutionError(f"Failed to resolve drug: {e}")
+            except (EntityNotFoundError, AmbiguousIdentifierError):
+                raise
+            except Exception as e:
+                logger.error(f"Error resolving drug {identifier}: {e}")
+                raise EntityResolutionError(f"Failed to resolve drug: {e}")
 
     def _make_drug_cache_key(self, identifier: str | tuple[str, str]) -> str:
         """Create cache key for drug identifier."""
@@ -296,65 +317,76 @@ class EntityResolver:
         Raises:
             EntityNotFoundError: If disease not found
         """
-        adapter = await get_adapter()
-
-        # Handle different identifier formats
+        # Handle tuple format
         if isinstance(identifier, tuple):
             namespace, disease_id = identifier
-            query_params = {"namespace": namespace, "disease_id": disease_id}
-        elif ":" in identifier:
-            # CURIE format
-            namespace, disease_id = identifier.split(":", 1)
-            query_params = {"namespace": namespace, "disease_id": disease_id}
-        else:
-            # Assume disease name
-            query_params = {"name": identifier}
-
-        try:
-            result = await adapter.query("get_disease_by_name", **query_params)
-
-            if not result.get("success") or not result.get("records"):
-                raise EntityNotFoundError(
-                    entity=str(identifier),
-                    suggestions=[],
-                )
-
-            records = result["records"]
-
-            # Check for ambiguous matches
-            if len(records) > 1:
-                matches = [
-                    {
-                        "name": r.get("name", "Unknown"),
-                        "curie": r.get("id", "unknown:unknown"),
-                    }
-                    for r in records
-                ]
-                raise AmbiguousIdentifierError(identifier=str(identifier), matches=matches)
-
-            # Convert to EntityRef
-            record = records[0]
-            disease_id = record.get("id", "unknown:unknown")
-
-            # Extract namespace from CURIE
-            if ":" in disease_id:
-                namespace, identifier_part = disease_id.split(":", 1)
-            else:
-                namespace = "unknown"
-                identifier_part = disease_id
-
             return EntityRef(
-                name=record.get("name", str(identifier)),
-                curie=disease_id,
+                name=disease_id,
+                curie=f"{namespace}:{disease_id}",
                 namespace=namespace,
-                identifier=identifier_part,
+                identifier=disease_id,
             )
 
-        except (EntityNotFoundError, AmbiguousIdentifierError):
-            raise
-        except Exception as e:
-            logger.error(f"Error resolving disease {identifier}: {e}")
-            raise EntityResolutionError(f"Failed to resolve disease: {e}")
+        # Handle CURIE format
+        elif ":" in identifier and not " " in identifier:
+            # It's a CURIE like "doid:332"
+            namespace, disease_id = identifier.split(":", 1)
+            return EntityRef(
+                name=disease_id,
+                curie=identifier,
+                namespace=namespace,
+                identifier=disease_id,
+            )
+
+        # Handle disease name - need to search database
+        else:
+            # Search for disease by name in database
+            adapter = await get_adapter()
+
+            try:
+                result = await adapter.query("search_disease_by_name", name=identifier)
+
+                if not result.get("success") or not result.get("records"):
+                    raise EntityNotFoundError(
+                        entity=identifier,
+                        suggestions=[],
+                    )
+
+                records = result["records"]
+
+                # Auto-select best match (sorted by exactness and size)
+                # The ORDER BY in the query prioritizes exact matches first
+                record = records[0]
+
+                # Log if multiple matches found (for debugging)
+                if len(records) > 1:
+                    logger.info(
+                        f"Disease '{identifier}' matched {len(records)} entities, "
+                        f"selecting best match: {record.get('disease_id')}"
+                    )
+
+                # Convert to EntityRef
+                disease_id = record.get("disease_id", "unknown:unknown")
+
+                # Extract namespace from CURIE
+                if ":" in disease_id:
+                    namespace, identifier_part = disease_id.split(":", 1)
+                else:
+                    namespace = "unknown"
+                    identifier_part = disease_id
+
+                return EntityRef(
+                    name=record.get("name", identifier),
+                    curie=disease_id,
+                    namespace=namespace,
+                    identifier=identifier_part,
+                )
+
+            except (EntityNotFoundError, AmbiguousIdentifierError):
+                raise
+            except Exception as e:
+                logger.error(f"Error resolving disease {identifier}: {e}")
+                raise EntityResolutionError(f"Failed to resolve disease: {e}")
 
     async def resolve_pathway(self, identifier: str | tuple[str, str]) -> EntityRef:
         """

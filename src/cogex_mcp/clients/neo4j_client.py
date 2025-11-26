@@ -866,6 +866,49 @@ class Neo4jClient:
                 ORDER BY size(p.name) ASC
                 LIMIT 10
             """,
+            "search_disease_by_name": """
+                // Search for diseases by name (case-insensitive matching)
+                MATCH (d:BioEntity)
+                WHERE toLower(d.name) CONTAINS toLower($name)
+                  AND (
+                    d.id STARTS WITH 'doid:' OR
+                    d.id STARTS WITH 'mondo:' OR
+                    d.id STARTS WITH 'mesh:' OR
+                    d.id STARTS WITH 'hp:' OR
+                    d.id STARTS WITH 'efo:'
+                  )
+                  AND (d.obsolete = false OR d.obsolete IS NULL)
+                  AND d.name IS NOT NULL
+                RETURN
+                  d.name AS name,
+                  d.id AS disease_id,
+                  split(d.id, ':')[0] AS namespace
+                ORDER BY
+                  CASE WHEN toLower(d.name) = toLower($name) THEN 0 ELSE 1 END,
+                  size(d.name) ASC
+                LIMIT 10
+            """,
+            "search_drug_by_name": """
+                // Search for drugs by name (case-insensitive matching)
+                MATCH (d:BioEntity)
+                WHERE toLower(d.name) CONTAINS toLower($name)
+                  AND (
+                    d.id STARTS WITH 'chebi:' OR
+                    d.id STARTS WITH 'chembl:' OR
+                    d.id STARTS WITH 'pubchem:' OR
+                    d.id STARTS WITH 'drugbank:'
+                  )
+                  AND (d.obsolete = false OR d.obsolete IS NULL)
+                  AND d.name IS NOT NULL
+                RETURN
+                  d.name AS name,
+                  d.id AS drug_id,
+                  split(d.id, ':')[0] AS namespace
+                ORDER BY
+                  CASE WHEN toLower(d.name) = toLower($name) THEN 0 ELSE 1 END,
+                  size(d.name) ASC
+                LIMIT 10
+            """,
             "get_genes_in_pathway": """
                 // CORRECTED: haspart goes FROM pathway TO gene
                 MATCH (p:BioEntity)-[:haspart]->(g:BioEntity)
