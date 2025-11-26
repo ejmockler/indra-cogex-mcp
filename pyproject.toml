@@ -63,7 +63,8 @@ dev = [
 ]
 
 [project.scripts]
-cogex-mcp = "cogex_mcp.server:main"
+cogex-mcp = "cogex_mcp.server_lowlevel:main"
+cogex-mcp-fastmcp = "cogex_mcp.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

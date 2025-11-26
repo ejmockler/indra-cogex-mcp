@@ -14,34 +14,23 @@ Modes:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
-    READONLY_ANNOTATIONS,
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import (
     GeneFeatureQuery,
     QueryMode,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_query_gene_or_feature",
-    annotations=READONLY_ANNOTATIONS,
-)
 async def cogex_query_gene_or_feature(
-    params: GeneFeatureQuery,
-    ctx: Context,
-) -> str:
+    params: GeneFeatureQuery) -> str:
     """
     Query genes and their features bidirectionally.
 
@@ -115,19 +104,17 @@ async def cogex_query_gene_or_feature(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on mode
         if params.mode == QueryMode.GENE_TO_FEATURES:
-            result = await _gene_to_features(params, ctx)
+            result = await _gene_to_features(params)
         elif params.mode == QueryMode.TISSUE_TO_GENES:
-            result = await _tissue_to_genes(params, ctx)
+            result = await _tissue_to_genes(params)
         elif params.mode == QueryMode.GO_TO_GENES:
-            result = await _go_to_genes(params, ctx)
+            result = await _go_to_genes(params)
         elif params.mode == QueryMode.DOMAIN_TO_GENES:
-            result = await _domain_to_genes(params, ctx)
+            result = await _domain_to_genes(params)
         elif params.mode == QueryMode.PHENOTYPE_TO_GENES:
-            result = await _phenotype_to_genes(params, ctx)
+            result = await _phenotype_to_genes(params)
         else:
             return f"Error: Unknown query mode '{params.mode}'"
 
@@ -139,7 +126,6 @@ async def cogex_query_gene_or_feature(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Query complete")
         return response
 
     except EntityResolutionError as e:
@@ -150,31 +136,21 @@ async def cogex_query_gene_or_feature(
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Mode Implementations
 # ============================================================================
 
-
 async def _gene_to_features(
-    params: GeneFeatureQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: GeneFeatureQuery) -> dict[str, Any]:
     """
     Mode: gene_to_features
     Get comprehensive gene profile with all requested features.
     """
     if not params.gene:
         raise ValueError("gene parameter required for gene_to_features mode")
-
-    await ctx.report_progress(0.2, "Resolving gene identifier...")
-
     # Resolve gene identifier
     resolver = get_resolver()
     gene = await resolver.resolve_gene(params.gene)
-
-    await ctx.report_progress(0.3, f"Fetching features for {gene.name}...")
-
     adapter = await get_adapter()
     result = {
         "gene": gene.model_dump(),
@@ -182,7 +158,6 @@ async def _gene_to_features(
 
     # Fetch requested features
     if params.include_expression:
-        await ctx.report_progress(0.4, "Fetching expression data...")
         expression_data = await adapter.query(
             "get_tissues_for_gene",
             gene_id=gene.curie,
@@ -191,7 +166,6 @@ async def _gene_to_features(
         result["expression"] = _parse_expression_data(expression_data)
 
     if params.include_go_terms:
-        await ctx.report_progress(0.5, "Fetching GO annotations...")
         go_data = await adapter.query(
             "get_go_terms_for_gene",
             gene_id=gene.curie,
@@ -200,7 +174,6 @@ async def _gene_to_features(
         result["go_terms"] = _parse_go_annotations(go_data)
 
     if params.include_pathways:
-        await ctx.report_progress(0.6, "Fetching pathway memberships...")
         pathway_data = await adapter.query(
             "get_pathways_for_gene",
             gene_id=gene.curie,
@@ -209,7 +182,6 @@ async def _gene_to_features(
         result["pathways"] = _parse_pathway_memberships(pathway_data)
 
     if params.include_diseases:
-        await ctx.report_progress(0.7, "Fetching disease associations...")
         disease_data = await adapter.query(
             "get_diseases_for_gene",
             gene_id=gene.curie,
@@ -219,41 +191,31 @@ async def _gene_to_features(
 
     # Optional features (more expensive queries)
     if params.include_domains:
-        await ctx.report_progress(0.8, "Fetching protein domains...")
         # TODO: Implement when backend query is available
         result["domains"] = []
 
     if params.include_variants:
-        await ctx.report_progress(0.85, "Fetching genetic variants...")
         # TODO: Implement when backend query is available
         result["variants"] = []
 
     if params.include_phenotypes:
-        await ctx.report_progress(0.9, "Fetching phenotype associations...")
         # TODO: Implement when backend query is available
         result["phenotypes"] = []
 
     if params.include_codependencies:
-        await ctx.report_progress(0.95, "Fetching gene codependencies...")
         # TODO: Implement when backend query is available
         result["codependencies"] = []
 
     return result
 
-
 async def _tissue_to_genes(
-    params: GeneFeatureQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: GeneFeatureQuery) -> dict[str, Any]:
     """
     Mode: tissue_to_genes
     Find genes expressed in a specific tissue.
     """
     if not params.tissue:
         raise ValueError("tissue parameter required for tissue_to_genes mode")
-
-    await ctx.report_progress(0.3, "Querying genes in tissue...")
-
     # Resolve tissue identifier
     # For now, accept tissue name directly
     # TODO: Implement tissue resolution
@@ -267,9 +229,6 @@ async def _tissue_to_genes(
         offset=params.offset,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse genes
     genes = _parse_gene_list(gene_data)
 
@@ -287,20 +246,14 @@ async def _tissue_to_genes(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _go_to_genes(
-    params: GeneFeatureQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: GeneFeatureQuery) -> dict[str, Any]:
     """
     Mode: go_to_genes
     Find genes annotated with a specific GO term.
     """
     if not params.go_term:
         raise ValueError("go_term parameter required for go_to_genes mode")
-
-    await ctx.report_progress(0.3, "Querying genes for GO term...")
-
     # Parse GO term identifier
     go_id = params.go_term if isinstance(params.go_term, str) else params.go_term[1]
 
@@ -312,9 +265,6 @@ async def _go_to_genes(
         offset=params.offset,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     genes = _parse_gene_list(gene_data)
 
     pagination_service = get_pagination()
@@ -330,20 +280,14 @@ async def _go_to_genes(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _domain_to_genes(
-    params: GeneFeatureQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: GeneFeatureQuery) -> dict[str, Any]:
     """
     Mode: domain_to_genes
     Find genes containing a specific protein domain.
     """
     if not params.domain:
         raise ValueError("domain parameter required for domain_to_genes mode")
-
-    await ctx.report_progress(0.3, "Querying genes with domain...")
-
     # TODO: Implement when backend query is available
     # For now, return placeholder
     return {
@@ -359,20 +303,14 @@ async def _domain_to_genes(
         "note": "Domain queries not yet implemented in backend",
     }
 
-
 async def _phenotype_to_genes(
-    params: GeneFeatureQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: GeneFeatureQuery) -> dict[str, Any]:
     """
     Mode: phenotype_to_genes
     Find genes associated with a specific phenotype.
     """
     if not params.phenotype:
         raise ValueError("phenotype parameter required for phenotype_to_genes mode")
-
-    await ctx.report_progress(0.3, "Querying genes for phenotype...")
-
     # TODO: Implement when backend query is available
     # For now, return placeholder
     return {
@@ -388,11 +326,9 @@ async def _phenotype_to_genes(
         "note": "Phenotype queries not yet implemented in backend",
     }
 
-
 # ============================================================================
 # Data Parsing Helpers
 # ============================================================================
-
 
 def _parse_expression_data(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse tissue expression data from backend response."""
@@ -416,7 +352,6 @@ def _parse_expression_data(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     return expressions
 
-
 def _parse_go_annotations(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse GO annotations from backend response."""
     if not data.get("success") or not data.get("records"):
@@ -439,7 +374,6 @@ def _parse_go_annotations(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     return annotations
 
-
 def _parse_pathway_memberships(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse pathway memberships from backend response."""
     if not data.get("success") or not data.get("records"):
@@ -460,7 +394,6 @@ def _parse_pathway_memberships(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     return pathways
-
 
 def _parse_disease_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse disease associations from backend response."""
@@ -485,7 +418,6 @@ def _parse_disease_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     return diseases
 
-
 def _parse_gene_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse gene list from backend response."""
     if not data.get("success") or not data.get("records"):
@@ -503,6 +435,5 @@ def _parse_gene_list(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     return genes
-
 
 logger.info("✓ Tool 1 (cogex_query_gene_or_feature) registered")

@@ -10,6 +10,6 @@ across 28+ biomedical databases.
 __version__ = "1.0.0"
 __author__ = "INDRA CoGEx MCP Team"
 
-from cogex_mcp.server import mcp
+from cogex_mcp.server import server
 
-__all__ = ["mcp", "__version__"]
+__all__ = ["server", "__version__"]

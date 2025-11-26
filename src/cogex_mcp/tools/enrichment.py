@@ -13,8 +13,6 @@ Analysis Types:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
@@ -29,21 +27,13 @@ from cogex_mcp.schemas import (
     EnrichmentType,
     EntityRef,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_enrichment_analysis",
-    annotations=STATISTICAL_ANNOTATIONS,
-)
 async def cogex_enrichment_analysis(
-    params: EnrichmentQuery,
-    ctx: Context,
-) -> str:
+    params: EnrichmentQuery) -> str:
     """
     Perform statistical gene set and pathway enrichment analysis.
 
@@ -190,17 +180,15 @@ async def cogex_enrichment_analysis(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on analysis type
         if params.analysis_type == EnrichmentType.DISCRETE:
-            result = await _analyze_discrete(params, ctx)
+            result = await _analyze_discrete(params)
         elif params.analysis_type == EnrichmentType.CONTINUOUS:
-            result = await _analyze_continuous(params, ctx)
+            result = await _analyze_continuous(params)
         elif params.analysis_type == EnrichmentType.SIGNED:
-            result = await _analyze_signed(params, ctx)
+            result = await _analyze_signed(params)
         elif params.analysis_type == EnrichmentType.METABOLITE:
-            result = await _analyze_metabolite(params, ctx)
+            result = await _analyze_metabolite(params)
         else:
             return f"Error: Unknown analysis type '{params.analysis_type}'"
 
@@ -212,7 +200,6 @@ async def cogex_enrichment_analysis(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Enrichment analysis complete")
         return response
 
     except EntityResolutionError as e:
@@ -227,16 +214,12 @@ async def cogex_enrichment_analysis(
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Mode Implementations
 # ============================================================================
 
-
 async def _analyze_discrete(
-    params: EnrichmentQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: EnrichmentQuery) -> dict[str, Any]:
     """
     Mode: discrete
     Overrepresentation analysis using Fisher's exact test.
@@ -244,7 +227,7 @@ async def _analyze_discrete(
     if not params.gene_list:
         raise ValueError("gene_list parameter required for discrete analysis")
 
-    await ctx.report_progress(0.2, f"Resolving {len(params.gene_list)} genes...")
+
 
     # Resolve gene identifiers
     resolver = get_resolver()
@@ -271,9 +254,7 @@ async def _analyze_discrete(
     # Optionally resolve background genes
     background_gene_ids = None
     if params.background_genes:
-        await ctx.report_progress(
-            0.3, f"Resolving {len(params.background_genes)} background genes..."
-        )
+
         background_resolved = []
         for gene in params.background_genes:
             try:
@@ -282,8 +263,6 @@ async def _analyze_discrete(
             except EntityResolutionError:
                 pass
         background_gene_ids = [g.curie for g in background_resolved]
-
-    await ctx.report_progress(0.4, f"Running discrete enrichment ({params.source.value})...")
 
     # Query backend
     adapter = await get_adapter()
@@ -306,9 +285,6 @@ async def _analyze_discrete(
         query_params["min_belief_score"] = params.min_belief_score
 
     enrichment_data = await adapter.query("discrete_analysis", **query_params)
-
-    await ctx.report_progress(0.8, "Processing enrichment results...")
-
     # Parse results
     results = _parse_enrichment_results(enrichment_data, params.analysis_type)
     statistics = _compute_enrichment_stats(results, params, len(resolved_genes))
@@ -320,11 +296,8 @@ async def _analyze_discrete(
         "failed_genes": failed_genes if failed_genes else None,
     }
 
-
 async def _analyze_continuous(
-    params: EnrichmentQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: EnrichmentQuery) -> dict[str, Any]:
     """
     Mode: continuous
     Gene Set Enrichment Analysis (GSEA) with ranked gene list.
@@ -332,7 +305,7 @@ async def _analyze_continuous(
     if not params.ranked_genes:
         raise ValueError("ranked_genes parameter required for continuous analysis")
 
-    await ctx.report_progress(0.2, f"Resolving {len(params.ranked_genes)} ranked genes...")
+
 
     # Resolve gene identifiers and preserve scores
     resolver = get_resolver()
@@ -350,10 +323,7 @@ async def _analyze_continuous(
     if not resolved_ranking:
         raise ValueError(f"No genes could be resolved. Failed: {', '.join(failed_genes)}")
 
-    await ctx.report_progress(
-        0.4,
-        f"Running GSEA with {params.permutations} permutations ({params.source.value})...",
-    )
+
 
     # Query backend
     adapter = await get_adapter()
@@ -374,9 +344,6 @@ async def _analyze_continuous(
         query_params["min_belief_score"] = params.min_belief_score
 
     enrichment_data = await adapter.query("continuous_analysis", **query_params)
-
-    await ctx.report_progress(0.8, "Processing GSEA results...")
-
     # Parse results
     results = _parse_enrichment_results(enrichment_data, params.analysis_type)
     statistics = _compute_enrichment_stats(results, params, len(resolved_ranking))
@@ -388,11 +355,8 @@ async def _analyze_continuous(
         "failed_genes": failed_genes if failed_genes else None,
     }
 
-
 async def _analyze_signed(
-    params: EnrichmentQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: EnrichmentQuery) -> dict[str, Any]:
     """
     Mode: signed
     Directional enrichment analysis (separate up/down regulation).
@@ -400,7 +364,7 @@ async def _analyze_signed(
     if not params.ranked_genes:
         raise ValueError("ranked_genes parameter required for signed analysis")
 
-    await ctx.report_progress(0.2, f"Resolving {len(params.ranked_genes)} ranked genes...")
+
 
     # Resolve gene identifiers and preserve signed scores
     resolver = get_resolver()
@@ -422,10 +386,7 @@ async def _analyze_signed(
     upregulated = sum(1 for score in resolved_ranking.values() if score > 0)
     downregulated = sum(1 for score in resolved_ranking.values() if score < 0)
 
-    await ctx.report_progress(
-        0.4,
-        f"Running signed enrichment ({upregulated} up, {downregulated} down, {params.source.value})...",
-    )
+
 
     # Query backend
     adapter = await get_adapter()
@@ -446,9 +407,6 @@ async def _analyze_signed(
         query_params["min_belief_score"] = params.min_belief_score
 
     enrichment_data = await adapter.query("signed_analysis", **query_params)
-
-    await ctx.report_progress(0.8, "Processing directional enrichment results...")
-
     # Parse results
     results = _parse_enrichment_results(enrichment_data, params.analysis_type)
     statistics = _compute_enrichment_stats(results, params, len(resolved_ranking))
@@ -462,11 +420,8 @@ async def _analyze_signed(
         "failed_genes": failed_genes if failed_genes else None,
     }
 
-
 async def _analyze_metabolite(
-    params: EnrichmentQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: EnrichmentQuery) -> dict[str, Any]:
     """
     Mode: metabolite
     Metabolite set enrichment analysis.
@@ -474,7 +429,7 @@ async def _analyze_metabolite(
     if not params.gene_list:
         raise ValueError("gene_list parameter required for metabolite analysis")
 
-    await ctx.report_progress(0.2, f"Validating {len(params.gene_list)} metabolite identifiers...")
+
 
     # For metabolite analysis, we don't resolve through gene resolver
     # Metabolites have their own identifier format (e.g., HMDB, ChEBI)
@@ -483,8 +438,6 @@ async def _analyze_metabolite(
 
     # Optionally resolve background metabolites
     background_metabolite_ids = params.background_genes if params.background_genes else None
-
-    await ctx.report_progress(0.4, f"Running metabolite enrichment ({params.source.value})...")
 
     # Query backend
     adapter = await get_adapter()
@@ -502,9 +455,6 @@ async def _analyze_metabolite(
         query_params["background_metabolite_ids"] = background_metabolite_ids
 
     enrichment_data = await adapter.query("metabolite_discrete_analysis", **query_params)
-
-    await ctx.report_progress(0.8, "Processing metabolite enrichment results...")
-
     # Parse results
     results = _parse_enrichment_results(enrichment_data, params.analysis_type)
     statistics = _compute_enrichment_stats(results, params, len(metabolite_ids))
@@ -515,11 +465,9 @@ async def _analyze_metabolite(
         "total_metabolites": len(metabolite_ids),
     }
 
-
 # ============================================================================
 # Data Parsing Helpers
 # ============================================================================
-
 
 def _parse_enrichment_results(
     data: dict[str, Any],
@@ -560,7 +508,6 @@ def _parse_enrichment_results(
 
     return results
 
-
 def _compute_enrichment_stats(
     results: list[EnrichmentResult],
     params: EnrichmentQuery,
@@ -577,6 +524,5 @@ def _compute_enrichment_stats(
         correction_method=params.correction_method,
         alpha=params.alpha,
     )
-
 
 logger.info("✓ Tool 3 (cogex_enrichment_analysis) registered")

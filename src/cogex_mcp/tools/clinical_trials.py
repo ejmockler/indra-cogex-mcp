@@ -12,34 +12,23 @@ Modes:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
-    READONLY_ANNOTATIONS,
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import (
     ClinicalTrialsMode,
     ClinicalTrialsQuery,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_query_clinical_trials",
-    annotations=READONLY_ANNOTATIONS,
-)
 async def cogex_query_clinical_trials(
-    params: ClinicalTrialsQuery,
-    ctx: Context,
-) -> str:
+    params: ClinicalTrialsQuery) -> str:
     """
     Query ClinicalTrials.gov data for drugs and diseases.
 
@@ -124,15 +113,13 @@ async def cogex_query_clinical_trials(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on mode
         if params.mode == ClinicalTrialsMode.GET_FOR_DRUG:
-            result = await _get_trials_for_drug(params, ctx)
+            result = await _get_trials_for_drug(params)
         elif params.mode == ClinicalTrialsMode.GET_FOR_DISEASE:
-            result = await _get_trials_for_disease(params, ctx)
+            result = await _get_trials_for_disease(params)
         elif params.mode == ClinicalTrialsMode.GET_BY_ID:
-            result = await _get_trial_by_id(params, ctx)
+            result = await _get_trial_by_id(params)
         else:
             return f"Error: Unknown query mode '{params.mode}'"
 
@@ -144,7 +131,6 @@ async def cogex_query_clinical_trials(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Query complete")
         return response
 
     except EntityResolutionError as e:
@@ -155,31 +141,21 @@ async def cogex_query_clinical_trials(
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Mode Implementations
 # ============================================================================
 
-
 async def _get_trials_for_drug(
-    params: ClinicalTrialsQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: ClinicalTrialsQuery) -> dict[str, Any]:
     """
     Mode: get_for_drug
     Get clinical trials testing a specific drug.
     """
     if not params.drug:
         raise ValueError("drug parameter required for get_for_drug mode")
-
-    await ctx.report_progress(0.2, "Resolving drug identifier...")
-
     # Resolve drug identifier
     resolver = get_resolver()
     drug = await resolver.resolve_drug(params.drug)
-
-    await ctx.report_progress(0.3, f"Querying trials for {drug.name}...")
-
     # Build query parameters
     query_params = {
         "drug_id": drug.curie,
@@ -196,9 +172,6 @@ async def _get_trials_for_drug(
 
     adapter = await get_adapter()
     trial_data = await adapter.query("get_trials_for_drug", **query_params)
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse trials
     trials = _parse_trial_list(trial_data)
 
@@ -216,26 +189,17 @@ async def _get_trials_for_drug(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _get_trials_for_disease(
-    params: ClinicalTrialsQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: ClinicalTrialsQuery) -> dict[str, Any]:
     """
     Mode: get_for_disease
     Get clinical trials for a specific disease.
     """
     if not params.disease:
         raise ValueError("disease parameter required for get_for_disease mode")
-
-    await ctx.report_progress(0.2, "Resolving disease identifier...")
-
     # Resolve disease identifier
     resolver = get_resolver()
     disease = await resolver.resolve_disease(params.disease)
-
-    await ctx.report_progress(0.3, f"Querying trials for {disease.name}...")
-
     # Build query parameters
     query_params = {
         "disease_id": disease.curie,
@@ -252,9 +216,6 @@ async def _get_trials_for_disease(
 
     adapter = await get_adapter()
     trial_data = await adapter.query("get_trials_for_disease", **query_params)
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse trials
     trials = _parse_trial_list(trial_data)
 
@@ -272,29 +233,20 @@ async def _get_trials_for_disease(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _get_trial_by_id(
-    params: ClinicalTrialsQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: ClinicalTrialsQuery) -> dict[str, Any]:
     """
     Mode: get_by_id
     Get details for a specific clinical trial by NCT ID.
     """
     if not params.trial_id:
         raise ValueError("trial_id parameter required for get_by_id mode")
-
-    await ctx.report_progress(0.3, f"Fetching trial {params.trial_id}...")
-
     adapter = await get_adapter()
     trial_data = await adapter.query(
         "get_trial_by_id",
         nct_id=params.trial_id,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing trial data...")
-
     if not trial_data.get("success"):
         raise ValueError(f"Trial {params.trial_id} not found")
 
@@ -305,11 +257,9 @@ async def _get_trial_by_id(
         "trial": trial,
     }
 
-
 # ============================================================================
 # Data Parsing Helpers
 # ============================================================================
-
 
 def _parse_trial_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse list of clinical trials from backend response."""
@@ -321,7 +271,6 @@ def _parse_trial_list(data: dict[str, Any]) -> list[dict[str, Any]]:
         trials.append(_parse_trial(record))
 
     return trials
-
 
 def _parse_trial(record: dict[str, Any]) -> dict[str, Any]:
     """
@@ -355,6 +304,5 @@ def _parse_trial(record: dict[str, Any]) -> dict[str, Any]:
         trial["sponsor"] = record["sponsor"]
 
     return trial
-
 
 logger.info("✓ Tool 8 (cogex_query_clinical_trials) registered")

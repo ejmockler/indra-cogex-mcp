@@ -604,8 +604,8 @@ class EntityNotFoundError(CoGExError):
 
 ## Key Design Decisions
 
-### 1. Python over TypeScript
-**Rationale**: Direct access to `indra_cogex.client` library. Neo4j performance benefits. Team familiarity.
+### 1. Python Implementation
+**Rationale**: Direct access to `indra_cogex.client` library. Neo4j performance benefits. Team familiarity. Native async/await support.
 
 ### 2. stdio Primary Transport
 **Rationale**: Server accesses CoGEx via Python library (local), not remote HTTP API. stdio is appropriate for library-based integrations. Streamable HTTP available for deployment flexibility.

@@ -13,12 +13,9 @@ Modes:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
-    READONLY_ANNOTATIONS,
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import (
@@ -26,22 +23,14 @@ from cogex_mcp.schemas import (
     PathwayQuery,
     PathwayQueryMode,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_query_pathway",
-    annotations=READONLY_ANNOTATIONS,
-)
 async def cogex_query_pathway(
-    params: PathwayQuery,
-    ctx: Context,
-) -> str:
+    params: PathwayQuery) -> str:
     """
     Query pathway memberships and find shared pathways.
 
@@ -119,17 +108,15 @@ async def cogex_query_pathway(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on mode
         if params.mode == PathwayQueryMode.GET_GENES:
-            result = await _get_genes_in_pathway(params, ctx)
+            result = await _get_genes_in_pathway(params)
         elif params.mode == PathwayQueryMode.GET_PATHWAYS:
-            result = await _get_pathways_for_gene(params, ctx)
+            result = await _get_pathways_for_gene(params)
         elif params.mode == PathwayQueryMode.FIND_SHARED:
-            result = await _find_shared_pathways(params, ctx)
+            result = await _find_shared_pathways(params)
         elif params.mode == PathwayQueryMode.CHECK_MEMBERSHIP:
-            result = await _check_membership(params, ctx)
+            result = await _check_membership(params)
         else:
             return f"Error: Unknown query mode '{params.mode}'"
 
@@ -141,7 +128,6 @@ async def cogex_query_pathway(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Query complete")
         return response
 
     except EntityResolutionError as e:
@@ -152,34 +138,24 @@ async def cogex_query_pathway(
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Mode Implementations
 # ============================================================================
 
-
 async def _get_genes_in_pathway(
-    params: PathwayQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: PathwayQuery) -> dict[str, Any]:
     """
     Mode: get_genes
     Get all genes in a specific pathway.
     """
     if not params.pathway:
         raise ValueError("pathway parameter required for get_genes mode")
-
-    await ctx.report_progress(0.2, "Resolving pathway identifier...")
-
     # Parse pathway identifier
     if isinstance(params.pathway, tuple):
         pathway_id = f"{params.pathway[0]}:{params.pathway[1]}"
     else:
         # Assume it's a pathway name or CURIE
         pathway_id = params.pathway
-
-    await ctx.report_progress(0.3, "Fetching genes in pathway...")
-
     adapter = await get_adapter()
 
     # Build query parameters
@@ -197,9 +173,6 @@ async def _get_genes_in_pathway(
         **query_params,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse pathway metadata
     pathway_node = _parse_pathway_node(pathway_data.get("pathway", {}))
 
@@ -221,26 +194,17 @@ async def _get_genes_in_pathway(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _get_pathways_for_gene(
-    params: PathwayQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: PathwayQuery) -> dict[str, Any]:
     """
     Mode: get_pathways
     Get all pathways containing a specific gene.
     """
     if not params.gene:
         raise ValueError("gene parameter required for get_pathways mode")
-
-    await ctx.report_progress(0.2, "Resolving gene identifier...")
-
     # Resolve gene identifier
     resolver = get_resolver()
     gene = await resolver.resolve_gene(params.gene)
-
-    await ctx.report_progress(0.3, f"Fetching pathways for {gene.name}...")
-
     adapter = await get_adapter()
 
     # Build query parameters
@@ -258,9 +222,6 @@ async def _get_pathways_for_gene(
         **query_params,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse pathway list
     pathways = _parse_pathway_list(pathway_data)
 
@@ -279,11 +240,8 @@ async def _get_pathways_for_gene(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _find_shared_pathways(
-    params: PathwayQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: PathwayQuery) -> dict[str, Any]:
     """
     Mode: find_shared
     Find pathways containing ALL specified genes.
@@ -291,7 +249,7 @@ async def _find_shared_pathways(
     if not params.genes or len(params.genes) < 2:
         raise ValueError("genes parameter required with at least 2 genes for find_shared mode")
 
-    await ctx.report_progress(0.2, f"Resolving {len(params.genes)} gene identifiers...")
+
 
     # Resolve all gene identifiers
     resolver = get_resolver()
@@ -301,7 +259,7 @@ async def _find_shared_pathways(
         gene = await resolver.resolve_gene(gene_input)
         gene_curies.append(gene.curie)
 
-    await ctx.report_progress(0.3, f"Finding shared pathways for {len(gene_curies)} genes...")
+
 
     adapter = await get_adapter()
 
@@ -320,9 +278,6 @@ async def _find_shared_pathways(
         **query_params,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse pathway list
     pathways = _parse_pathway_list(pathway_data)
 
@@ -341,11 +296,8 @@ async def _find_shared_pathways(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _check_membership(
-    params: PathwayQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: PathwayQuery) -> dict[str, Any]:
     """
     Mode: check_membership
     Check if a specific gene is in a specific pathway.
@@ -354,9 +306,6 @@ async def _check_membership(
         raise ValueError("gene parameter required for check_membership mode")
     if not params.pathway:
         raise ValueError("pathway parameter required for check_membership mode")
-
-    await ctx.report_progress(0.2, "Resolving identifiers...")
-
     # Resolve gene identifier
     resolver = get_resolver()
     gene = await resolver.resolve_gene(params.gene)
@@ -366,9 +315,6 @@ async def _check_membership(
         pathway_id = f"{params.pathway[0]}:{params.pathway[1]}"
     else:
         pathway_id = params.pathway
-
-    await ctx.report_progress(0.4, f"Checking if {gene.name} is in pathway...")
-
     adapter = await get_adapter()
     result_data = await adapter.query(
         "is_gene_in_pathway",
@@ -376,9 +322,6 @@ async def _check_membership(
         pathway_id=pathway_id,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing result...")
-
     # Parse result
     is_member = result_data.get("is_member", False) if result_data.get("success") else False
 
@@ -393,11 +336,9 @@ async def _check_membership(
         "pathway": pathway_node.model_dump() if pathway_node else {"pathway_id": pathway_id},
     }
 
-
 # ============================================================================
 # Data Parsing Helpers
 # ============================================================================
-
 
 def _parse_pathway_node(data: dict[str, Any]) -> PathwayNode | None:
     """Parse pathway node from backend response."""
@@ -416,7 +357,6 @@ def _parse_pathway_node(data: dict[str, Any]) -> PathwayNode | None:
     except Exception as e:
         logger.warning(f"Error parsing pathway node: {e}")
         return None
-
 
 def _parse_gene_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse gene list from backend response."""
@@ -437,7 +377,6 @@ def _parse_gene_list(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     return genes
 
-
 def _parse_pathway_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse pathway list from backend response."""
     if not data.get("success") or not data.get("records"):
@@ -457,6 +396,5 @@ def _parse_pathway_list(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     return pathways
-
 
 logger.info("✓ Tool 6 (cogex_query_pathway) registered")

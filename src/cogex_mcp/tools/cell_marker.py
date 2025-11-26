@@ -12,19 +12,16 @@ Modes:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
 
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
-    READONLY_ANNOTATIONS,
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import (
     CellMarkerMode,
     CellMarkerQuery,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
@@ -32,13 +29,8 @@ from cogex_mcp.services.pagination import get_pagination
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool(
-    name="cogex_query_cell_markers",
-    annotations=READONLY_ANNOTATIONS,
-)
 async def cogex_query_cell_markers(
     params: CellMarkerQuery,
-    ctx: Context,
 ) -> str:
     """
     Query CellMarker database for cell type markers.
@@ -125,15 +117,13 @@ async def cogex_query_cell_markers(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on mode
         if params.mode == CellMarkerMode.GET_MARKERS:
-            result = await _get_markers_for_cell_type(params, ctx)
+            result = await _get_markers_for_cell_type(params)
         elif params.mode == CellMarkerMode.GET_CELL_TYPES:
-            result = await _get_cell_types_for_marker(params, ctx)
+            result = await _get_cell_types_for_marker(params)
         elif params.mode == CellMarkerMode.CHECK_MARKER:
-            result = await _check_marker(params, ctx)
+            result = await _check_marker(params)
         else:
             return f"Error: Unknown query mode '{params.mode}'"
 
@@ -145,7 +135,6 @@ async def cogex_query_cell_markers(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Query complete")
         return response
 
     except EntityResolutionError as e:
@@ -164,7 +153,6 @@ async def cogex_query_cell_markers(
 
 async def _get_markers_for_cell_type(
     params: CellMarkerQuery,
-    ctx: Context,
 ) -> dict[str, Any]:
     """
     Mode: get_markers
@@ -172,9 +160,6 @@ async def _get_markers_for_cell_type(
     """
     if not params.cell_type:
         raise ValueError("cell_type parameter required for get_markers mode")
-
-    await ctx.report_progress(0.3, f"Fetching markers for {params.cell_type}...")
-
     adapter = await get_adapter()
 
     # Build query parameters
@@ -195,9 +180,6 @@ async def _get_markers_for_cell_type(
         "get_markers_for_cell_type",
         **query_params,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse cell type metadata
     cell_type_node = _parse_cell_type_node(
         marker_data.get("cell_type", {}),
@@ -227,7 +209,6 @@ async def _get_markers_for_cell_type(
 
 async def _get_cell_types_for_marker(
     params: CellMarkerQuery,
-    ctx: Context,
 ) -> dict[str, Any]:
     """
     Mode: get_cell_types
@@ -235,15 +216,9 @@ async def _get_cell_types_for_marker(
     """
     if not params.marker:
         raise ValueError("marker parameter required for get_cell_types mode")
-
-    await ctx.report_progress(0.2, "Resolving marker gene identifier...")
-
     # Resolve marker gene identifier
     resolver = get_resolver()
     marker_gene = await resolver.resolve_gene(params.marker)
-
-    await ctx.report_progress(0.3, f"Fetching cell types for {marker_gene.name}...")
-
     adapter = await get_adapter()
 
     # Build query parameters
@@ -264,9 +239,6 @@ async def _get_cell_types_for_marker(
         "get_cell_types_for_marker",
         **query_params,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse cell type list
     cell_types = _parse_cell_type_list(cell_type_data)
 
@@ -288,7 +260,6 @@ async def _get_cell_types_for_marker(
 
 async def _check_marker(
     params: CellMarkerQuery,
-    ctx: Context,
 ) -> dict[str, Any]:
     """
     Mode: check_marker
@@ -298,18 +269,9 @@ async def _check_marker(
         raise ValueError("cell_type parameter required for check_marker mode")
     if not params.marker:
         raise ValueError("marker parameter required for check_marker mode")
-
-    await ctx.report_progress(0.2, "Resolving marker gene identifier...")
-
     # Resolve marker gene identifier
     resolver = get_resolver()
     marker_gene = await resolver.resolve_gene(params.marker)
-
-    await ctx.report_progress(
-        0.4,
-        f"Checking if {marker_gene.name} is a marker for {params.cell_type}...",
-    )
-
     adapter = await get_adapter()
 
     # Build query parameters
@@ -329,9 +291,6 @@ async def _check_marker(
         "is_cell_marker",
         **query_params,
     )
-
-    await ctx.report_progress(0.7, "Processing result...")
-
     # Parse result
     is_marker = check_data.get("is_marker", False) if check_data.get("success") else False
 

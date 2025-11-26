@@ -13,12 +13,9 @@ Modes:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
-    READONLY_ANNOTATIONS,
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import (
@@ -30,20 +27,12 @@ from cogex_mcp.schemas import (
     PaginatedResponse,
     Publication,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.formatter import get_formatter
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_query_literature",
-    annotations=READONLY_ANNOTATIONS,
-)
 async def cogex_query_literature(
-    params: LiteratureQuery,
-    ctx: Context,
-) -> str:
+    params: LiteratureQuery) -> str:
     """
     Access PubMed literature and INDRA statement evidence.
 
@@ -168,17 +157,15 @@ async def cogex_query_literature(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on mode
         if params.mode == LiteratureQueryMode.GET_STATEMENTS_FOR_PMID:
-            result = await _get_statements_for_pmid(params, ctx)
+            result = await _get_statements_for_pmid(params)
         elif params.mode == LiteratureQueryMode.GET_EVIDENCE_FOR_STATEMENT:
-            result = await _get_evidence_for_statement(params, ctx)
+            result = await _get_evidence_for_statement(params)
         elif params.mode == LiteratureQueryMode.SEARCH_BY_MESH:
-            result = await _search_by_mesh(params, ctx)
+            result = await _search_by_mesh(params)
         elif params.mode == LiteratureQueryMode.GET_STATEMENTS_BY_HASHES:
-            result = await _get_statements_by_hashes(params, ctx)
+            result = await _get_statements_by_hashes(params)
         else:
             return f"Error: Unknown literature query mode '{params.mode}'"
 
@@ -190,32 +177,24 @@ async def cogex_query_literature(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Literature query complete")
         return response
 
     except Exception as e:
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Mode Implementations
 # ============================================================================
 
-
 async def _get_statements_for_pmid(
-    params: LiteratureQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: LiteratureQuery) -> dict[str, Any]:
     """
     Mode: get_statements_for_pmid
     Retrieve INDRA statements extracted from a specific PubMed publication.
     """
     if not params.pmid:
         raise ValueError("get_statements_for_pmid mode requires pmid parameter")
-
-    await ctx.report_progress(0.3, f"Querying statements for PMID {params.pmid}...")
-
     adapter = await get_adapter()
 
     query_params = {
@@ -228,9 +207,6 @@ async def _get_statements_for_pmid(
     }
 
     stmt_data = await adapter.query("get_statements_for_paper", **query_params)
-
-    await ctx.report_progress(0.7, "Processing statements...")
-
     # Parse statements
     statements = _parse_statements(stmt_data, params.include_evidence_text)
 
@@ -249,20 +225,14 @@ async def _get_statements_for_pmid(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _get_evidence_for_statement(
-    params: LiteratureQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: LiteratureQuery) -> dict[str, Any]:
     """
     Mode: get_evidence_for_statement
     Retrieve evidence text snippets for a specific INDRA statement.
     """
     if not params.statement_hash:
         raise ValueError("get_evidence_for_statement mode requires statement_hash parameter")
-
-    await ctx.report_progress(0.3, "Querying evidence for statement...")
-
     adapter = await get_adapter()
 
     query_params = {
@@ -274,9 +244,6 @@ async def _get_evidence_for_statement(
     }
 
     evidence_data = await adapter.query("get_evidences_for_stmt_hash", **query_params)
-
-    await ctx.report_progress(0.7, "Processing evidence...")
-
     # Parse evidence
     evidence_list = _parse_evidence(evidence_data)
 
@@ -295,11 +262,8 @@ async def _get_evidence_for_statement(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _search_by_mesh(
-    params: LiteratureQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: LiteratureQuery) -> dict[str, Any]:
     """
     Mode: search_by_mesh
     Search PubMed publications by MeSH terms.
@@ -307,7 +271,7 @@ async def _search_by_mesh(
     if not params.mesh_terms or len(params.mesh_terms) == 0:
         raise ValueError("search_by_mesh mode requires mesh_terms parameter")
 
-    await ctx.report_progress(0.3, f"Searching {len(params.mesh_terms)} MeSH terms...")
+
 
     adapter = await get_adapter()
 
@@ -319,9 +283,6 @@ async def _search_by_mesh(
     }
 
     pub_data = await adapter.query("get_evidence_for_mesh", **query_params)
-
-    await ctx.report_progress(0.7, "Processing publications...")
-
     # Parse publications
     publications = _parse_publications(pub_data)
 
@@ -340,11 +301,8 @@ async def _search_by_mesh(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _get_statements_by_hashes(
-    params: LiteratureQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: LiteratureQuery) -> dict[str, Any]:
     """
     Mode: get_statements_by_hashes
     Batch retrieve INDRA statements by their hashes.
@@ -352,7 +310,7 @@ async def _get_statements_by_hashes(
     if not params.statement_hashes or len(params.statement_hashes) == 0:
         raise ValueError("get_statements_by_hashes mode requires statement_hashes parameter")
 
-    await ctx.report_progress(0.3, f"Retrieving {len(params.statement_hashes)} statements...")
+
 
     adapter = await get_adapter()
 
@@ -364,9 +322,6 @@ async def _get_statements_by_hashes(
     }
 
     stmt_data = await adapter.query("get_stmts_for_stmt_hashes", **query_params)
-
-    await ctx.report_progress(0.7, "Processing statements...")
-
     # Parse statements
     statements = _parse_statements(stmt_data, params.include_evidence_text)
 
@@ -383,11 +338,9 @@ async def _get_statements_by_hashes(
         "pagination": pagination.model_dump(),
     }
 
-
 # ============================================================================
 # Data Parsing Helpers
 # ============================================================================
-
 
 def _parse_statements(
     data: dict[str, Any],
@@ -430,7 +383,6 @@ def _parse_statements(
 
     return statements
 
-
 def _parse_evidence(data: dict[str, Any]) -> list[Evidence]:
     """Parse evidence snippets from backend response."""
     if not data.get("success") or not data.get("evidence"):
@@ -447,7 +399,6 @@ def _parse_evidence(data: dict[str, Any]) -> list[Evidence]:
         evidence_list.append(evidence)
 
     return evidence_list
-
 
 def _parse_publications(data: dict[str, Any]) -> list[Publication]:
     """Parse PubMed publications from backend response."""
@@ -471,7 +422,6 @@ def _parse_publications(data: dict[str, Any]) -> list[Publication]:
 
     return publications
 
-
 def _build_pagination(
     total_count: int,
     count: int,
@@ -490,6 +440,5 @@ def _build_pagination(
         has_more=has_more,
         next_offset=next_offset,
     )
-
 
 logger.info("✓ Tool 9 (cogex_query_literature) registered")

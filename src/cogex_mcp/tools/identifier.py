@@ -9,8 +9,6 @@ Enables bidirectional mapping between different identifier systems used in biolo
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
@@ -18,20 +16,12 @@ from cogex_mcp.constants import (
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import IdentifierMapping, IdentifierQuery
-from cogex_mcp.server import mcp
 from cogex_mcp.services.formatter import get_formatter
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_resolve_identifiers",
-    annotations=INTERNAL_ANNOTATIONS,
-)
 async def cogex_resolve_identifiers(
-    params: IdentifierQuery,
-    ctx: Context,
-) -> str:
+    params: IdentifierQuery) -> str:
     """
     Convert identifiers between different biological namespaces.
 
@@ -129,8 +119,6 @@ async def cogex_resolve_identifiers(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Validate inputs
         if not params.identifiers:
             return "Error: identifiers list cannot be empty"
@@ -138,11 +126,7 @@ async def cogex_resolve_identifiers(
         if not params.from_namespace or not params.to_namespace:
             return "Error: Both from_namespace and to_namespace are required"
 
-        await ctx.report_progress(
-            0.3,
-            f"Converting {len(params.identifiers)} identifiers from "
-            f"{params.from_namespace} to {params.to_namespace}...",
-        )
+
 
         # Execute conversion
         adapter = await get_adapter()
@@ -151,10 +135,7 @@ async def cogex_resolve_identifiers(
             identifiers=params.identifiers,
             from_namespace=params.from_namespace,
             to_namespace=params.to_namespace,
-            ctx=ctx,
         )
-
-        await ctx.report_progress(0.8, "Formatting results...")
 
         # Format response
         formatter = get_formatter()
@@ -164,26 +145,21 @@ async def cogex_resolve_identifiers(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Conversion complete")
         return response
 
     except Exception as e:
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Implementation
 # ============================================================================
-
 
 async def _convert_identifiers(
     adapter,
     identifiers: list[str],
     from_namespace: str,
-    to_namespace: str,
-    ctx: Context,
-) -> dict[str, Any]:
+    to_namespace: str) -> dict[str, Any]:
     """
     Convert identifiers between namespaces using appropriate backend endpoint.
 
@@ -195,18 +171,12 @@ async def _convert_identifiers(
         from_namespace=from_namespace,
         to_namespace=to_namespace,
     )
-
-    await ctx.report_progress(0.5, f"Querying {endpoint}...")
-
     # Query backend
     conversion_data = await adapter.query(
         endpoint,
         **query_params,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing mappings...")
-
     # Parse results
     mappings, unmapped = _parse_conversion_results(
         data=conversion_data,
@@ -228,7 +198,6 @@ async def _convert_identifiers(
         "from_namespace": from_namespace,
         "to_namespace": to_namespace,
     }
-
 
 def _select_endpoint(
     identifiers: list[str],
@@ -268,7 +237,6 @@ def _select_endpoint(
         "from_namespace": from_namespace,
         "to_namespace": to_namespace,
     }
-
 
 def _parse_conversion_results(
     data: dict[str, Any],
@@ -322,6 +290,5 @@ def _parse_conversion_results(
             mappings.append(mapping)
 
     return mappings, unmapped
-
 
 logger.info("✓ Tool 11 (cogex_resolve_identifiers) registered")

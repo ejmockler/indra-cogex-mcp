@@ -6,19 +6,19 @@ Run with: pytest tests/test_server.py -v
 
 import pytest
 
-from cogex_mcp import mcp
+from cogex_mcp import server
 
 
 def test_server_exists():
     """Test that MCP server instance exists."""
-    assert mcp is not None
-    assert mcp.name == "cogex_mcp"
+    assert server is not None
+    assert server.name == "cogex_mcp"
 
 
 def test_server_has_tools():
     """Test that server has all Priority 1-2 tools registered."""
     # Get list of registered tools
-    tools = list(mcp._tool_manager._tools.keys()) if hasattr(mcp, '_tool_manager') else []
+    tools = list(server._tool_manager._tools.keys()) if hasattr(server, '_tool_manager') else []
 
     # Should have all 10 Priority 1-2 tools
     assert len(tools) >= 10, f"Server should have at least 10 tools registered, found {len(tools)}"
@@ -41,8 +41,8 @@ def test_server_has_tools():
 
 def test_tool_has_correct_annotations():
     """Test that Tool 1 has correct MCP annotations."""
-    if hasattr(mcp, '_tool_manager'):
-        tools = mcp._tool_manager._tools
+    if hasattr(server, '_tool_manager'):
+        tools = server._tool_manager._tools
 
         if "cogex_query_gene_or_feature" in tools:
             tool = tools["cogex_query_gene_or_feature"]
@@ -158,8 +158,8 @@ def test_pagination():
 
 def test_tool2_annotations():
     """Test that Tool 2 has correct MCP annotations."""
-    if hasattr(mcp, '_tool_manager'):
-        tools = mcp._tool_manager._tools
+    if hasattr(server, '_tool_manager'):
+        tools = server._tool_manager._tools
 
         if "cogex_extract_subnetwork" in tools:
             tool = tools["cogex_extract_subnetwork"]
@@ -376,8 +376,8 @@ def test_tool10_variants_schemas():
 
 def test_all_10_tools_registered():
     """Test that all 10 Priority 1-2 tools are registered."""
-    if hasattr(mcp, '_tool_manager'):
-        tools = mcp._tool_manager._tools
+    if hasattr(server, '_tool_manager'):
+        tools = server._tool_manager._tools
 
         expected_tools = [
             "cogex_query_gene_or_feature",
@@ -400,8 +400,8 @@ def test_all_10_tools_registered():
 
 def test_all_tools_have_annotations():
     """Test that all 10 tools have correct MCP annotations."""
-    if hasattr(mcp, '_tool_manager'):
-        tools = mcp._tool_manager._tools
+    if hasattr(server, '_tool_manager'):
+        tools = server._tool_manager._tools
 
         expected_tools = [
             "cogex_query_gene_or_feature",

@@ -13,34 +13,23 @@ Modes:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
-    READONLY_ANNOTATIONS,
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import (
     ProteinFunctionMode,
     ProteinFunctionQuery,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_query_protein_functions",
-    annotations=READONLY_ANNOTATIONS,
-)
 async def cogex_query_protein_functions(
-    params: ProteinFunctionQuery,
-    ctx: Context,
-) -> str:
+    params: ProteinFunctionQuery) -> str:
     """
     Query enzyme activities and protein function types.
 
@@ -132,17 +121,15 @@ async def cogex_query_protein_functions(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on mode
         if params.mode == ProteinFunctionMode.GENE_TO_ACTIVITIES:
-            result = await _get_enzyme_activities(params, ctx)
+            result = await _get_enzyme_activities(params)
         elif params.mode == ProteinFunctionMode.ACTIVITY_TO_GENES:
-            result = await _get_genes_for_activity(params, ctx)
+            result = await _get_genes_for_activity(params)
         elif params.mode == ProteinFunctionMode.CHECK_ACTIVITY:
-            result = await _check_enzyme_activity(params, ctx)
+            result = await _check_enzyme_activity(params)
         elif params.mode == ProteinFunctionMode.CHECK_FUNCTION_TYPES:
-            result = await _check_function_types(params, ctx)
+            result = await _check_function_types(params)
         else:
             return f"Error: Unknown query mode '{params.mode}'"
 
@@ -154,7 +141,6 @@ async def cogex_query_protein_functions(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Query complete")
         return response
 
     except EntityResolutionError as e:
@@ -165,31 +151,21 @@ async def cogex_query_protein_functions(
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Mode Implementations
 # ============================================================================
 
-
 async def _get_enzyme_activities(
-    params: ProteinFunctionQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: ProteinFunctionQuery) -> dict[str, Any]:
     """
     Mode: gene_to_activities
     Get all enzyme activities for a specific gene.
     """
     if not params.gene:
         raise ValueError("gene parameter required for gene_to_activities mode")
-
-    await ctx.report_progress(0.2, "Resolving gene identifier...")
-
     # Resolve gene identifier
     resolver = get_resolver()
     gene = await resolver.resolve_gene(params.gene)
-
-    await ctx.report_progress(0.3, f"Fetching enzyme activities for {gene.name}...")
-
     adapter = await get_adapter()
 
     # Fetch enzyme activities from backend
@@ -198,9 +174,6 @@ async def _get_enzyme_activities(
         gene_id=gene.curie,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse activities
     activities = _parse_enzyme_activities(activity_data)
 
@@ -209,20 +182,14 @@ async def _get_enzyme_activities(
         "activities": activities,
     }
 
-
 async def _get_genes_for_activity(
-    params: ProteinFunctionQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: ProteinFunctionQuery) -> dict[str, Any]:
     """
     Mode: activity_to_genes
     Find all genes with a specific enzyme activity.
     """
     if not params.enzyme_activity:
         raise ValueError("enzyme_activity parameter required for activity_to_genes mode")
-
-    await ctx.report_progress(0.2, f"Fetching genes with '{params.enzyme_activity}' activity...")
-
     adapter = await get_adapter()
 
     # Build query parameters
@@ -237,9 +204,6 @@ async def _get_genes_for_activity(
         **query_params,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse gene list
     genes = _parse_gene_list(gene_data)
 
@@ -258,11 +222,8 @@ async def _get_genes_for_activity(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _check_enzyme_activity(
-    params: ProteinFunctionQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: ProteinFunctionQuery) -> dict[str, Any]:
     """
     Mode: check_activity
     Check if a gene has a specific enzyme activity.
@@ -271,17 +232,9 @@ async def _check_enzyme_activity(
         raise ValueError("gene parameter required for check_activity mode")
     if not params.enzyme_activity:
         raise ValueError("enzyme_activity parameter required for check_activity mode")
-
-    await ctx.report_progress(0.2, "Resolving gene identifier...")
-
     # Resolve gene identifier
     resolver = get_resolver()
     gene = await resolver.resolve_gene(params.gene)
-
-    await ctx.report_progress(
-        0.4, f"Checking if {gene.name} has '{params.enzyme_activity}' activity..."
-    )
-
     adapter = await get_adapter()
 
     # Check specific activity based on type
@@ -323,11 +276,8 @@ async def _check_enzyme_activity(
         "activity": params.enzyme_activity,
     }
 
-
 async def _check_function_types(
-    params: ProteinFunctionQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: ProteinFunctionQuery) -> dict[str, Any]:
     """
     Mode: check_function_types
     Batch check if genes have specific function types (kinase, phosphatase, TF).
@@ -345,7 +295,7 @@ async def _check_function_types(
     if not params.function_types:
         raise ValueError("function_types parameter required for check_function_types mode")
 
-    await ctx.report_progress(0.2, f"Resolving {len(genes_to_check)} gene identifiers...")
+
 
     # Resolve all gene identifiers
     resolver = get_resolver()
@@ -360,7 +310,7 @@ async def _check_function_types(
             # Include unresolved genes with None value
             resolved_genes[str(gene_input)] = None
 
-    await ctx.report_progress(0.4, f"Checking function types for {len(resolved_genes)} genes...")
+
 
     adapter = await get_adapter()
     function_checks = {}
@@ -380,8 +330,6 @@ async def _check_function_types(
         for function_type in params.function_types:
             current_check += 1
             progress = 0.4 + (0.5 * current_check / total_checks)
-            await ctx.report_progress(progress, f"Checking {gene_name} for {function_type}...")
-
             function_lower = function_type.lower()
 
             try:
@@ -426,11 +374,9 @@ async def _check_function_types(
         "function_types": params.function_types,
     }
 
-
 # ============================================================================
 # Data Parsing Helpers
 # ============================================================================
-
 
 def _parse_enzyme_activities(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse enzyme activities from backend response."""
@@ -449,7 +395,6 @@ def _parse_enzyme_activities(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     return activities
-
 
 def _parse_gene_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse gene list from backend response."""
@@ -470,6 +415,5 @@ def _parse_gene_list(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     return genes
-
 
 logger.info("✓ Tool 16 (cogex_query_protein_functions) registered")

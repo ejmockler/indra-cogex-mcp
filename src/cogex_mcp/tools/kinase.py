@@ -9,7 +9,6 @@ import logging
 import re
 from typing import Any
 
-from mcp.server.fastmcp import Context
 from pydantic import BaseModel, Field, field_validator
 
 from cogex_mcp.clients.adapter import get_adapter
@@ -23,16 +22,13 @@ from cogex_mcp.schemas import (
     EnrichmentStatistics,
     EntityRef,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.formatter import get_formatter
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================================
 # Input Schema
 # ============================================================================
-
 
 class KinaseEnrichmentQuery(BaseToolInput):
     """
@@ -95,11 +91,9 @@ class KinaseEnrichmentQuery(BaseToolInput):
 
         return v
 
-
 # ============================================================================
 # Output Schemas
 # ============================================================================
-
 
 class KinaseEnrichmentResult(BaseModel):
     """Single kinase enrichment result."""
@@ -124,20 +118,12 @@ class KinaseEnrichmentResult(BaseModel):
         description="Prediction confidence: high, medium, or low",
     )
 
-
 # ============================================================================
 # Tool Implementation
 # ============================================================================
 
-
-@mcp.tool(
-    name="cogex_analyze_kinase_enrichment",
-    annotations=STATISTICAL_ANNOTATIONS,
-)
 async def cogex_analyze_kinase_enrichment(
-    params: KinaseEnrichmentQuery,
-    ctx: Context,
-) -> str:
+    params: KinaseEnrichmentQuery) -> str:
     """
     Predict upstream kinases from phosphoproteomics data.
 
@@ -260,8 +246,6 @@ async def cogex_analyze_kinase_enrichment(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating phosphosite formats...")
-
         # Validate that we have phosphosites
         if not params.phosphosites:
             return "Error: phosphosites parameter is required and cannot be empty"
@@ -272,24 +256,14 @@ async def cogex_analyze_kinase_enrichment(
             gene = site.split("_")[0]
             unique_genes.add(gene)
 
-        await ctx.report_progress(
-            0.2,
-            f"Analyzing {len(params.phosphosites)} phosphosites from {len(unique_genes)} genes...",
-        )
+
 
         # Prepare background phosphosites if provided
         background_sites = None
         if params.background:
             background_sites = params.background
-            await ctx.report_progress(
-                0.3, f"Using custom background set ({len(background_sites)} sites)..."
-            )
-        else:
-            await ctx.report_progress(0.3, "Using default database background...")
 
         # Query backend
-        await ctx.report_progress(0.4, "Performing kinase enrichment analysis...")
-
         adapter = await get_adapter()
 
         query_params = {
@@ -303,9 +277,6 @@ async def cogex_analyze_kinase_enrichment(
             query_params["background"] = background_sites
 
         enrichment_data = await adapter.query("kinase_analysis", **query_params)
-
-        await ctx.report_progress(0.8, "Processing kinase enrichment results...")
-
         # Parse results
         results = _parse_kinase_results(enrichment_data)
         statistics = _compute_kinase_statistics(results, params, len(unique_genes))
@@ -326,7 +297,6 @@ async def cogex_analyze_kinase_enrichment(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Kinase enrichment analysis complete")
         return response
 
     except ValueError as e:
@@ -337,11 +307,9 @@ async def cogex_analyze_kinase_enrichment(
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Data Parsing Helpers
 # ============================================================================
-
 
 def _parse_kinase_results(
     data: dict[str, Any],
@@ -397,7 +365,6 @@ def _parse_kinase_results(
 
     return results
 
-
 def _compute_kinase_statistics(
     results: list[KinaseEnrichmentResult],
     params: KinaseEnrichmentQuery,
@@ -414,6 +381,5 @@ def _compute_kinase_statistics(
         correction_method=params.correction_method,
         alpha=params.alpha,
     )
-
 
 logger.info("✓ Tool 15 (cogex_analyze_kinase_enrichment) registered")

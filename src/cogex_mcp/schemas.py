@@ -1058,8 +1058,32 @@ class VariantQuery(PaginatedToolInput):
         return v
 
 
-# Note: VariantNode and PhenotypeNode are in schemas_tool10.py
-# to avoid conflicts with existing schemas
+# Tool 10 output schemas (previously in schemas_tool10.py, now consolidated)
+
+
+class VariantNode(BaseModel):
+    """Genetic variant from GWAS."""
+
+    rsid: str = Field(..., description="dbSNP rsID")
+    chromosome: str
+    position: int
+    ref_allele: str = Field(..., description="Reference allele")
+    alt_allele: str = Field(..., description="Alternate allele")
+    p_value: float = Field(..., description="GWAS p-value")
+    odds_ratio: float | None = None
+    trait: str = Field(..., description="Associated trait or phenotype")
+    study: str = Field(..., description="GWAS study identifier")
+    source: str = Field(..., description="Data source (gwas_catalog, disgenet)")
+
+
+class PhenotypeNode(BaseModel):
+    """Phenotype entity."""
+
+    name: str
+    curie: str
+    namespace: str = Field(default="hpo", description="Typically HPO")
+    identifier: str
+    description: str | None = None
 
 
 # ============================================================================

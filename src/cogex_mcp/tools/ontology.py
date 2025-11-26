@@ -12,8 +12,6 @@ Modes:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
@@ -25,21 +23,13 @@ from cogex_mcp.schemas import (
     HierarchyDirection,
     OntologyHierarchyQuery,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_get_ontology_hierarchy",
-    annotations=INTERNAL_ANNOTATIONS,
-)
 async def cogex_get_ontology_hierarchy(
-    params: OntologyHierarchyQuery,
-    ctx: Context,
-) -> str:
+    params: OntologyHierarchyQuery) -> str:
     """
     Navigate ontology hierarchies (GO, HPO, MONDO, etc.).
 
@@ -95,15 +85,13 @@ async def cogex_get_ontology_hierarchy(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on direction
         if params.direction == HierarchyDirection.PARENTS:
-            result = await _get_ontology_parents(params, ctx)
+            result = await _get_ontology_parents(params)
         elif params.direction == HierarchyDirection.CHILDREN:
-            result = await _get_ontology_children(params, ctx)
+            result = await _get_ontology_children(params)
         elif params.direction == HierarchyDirection.BOTH:
-            result = await _get_ontology_hierarchy(params, ctx)
+            result = await _get_ontology_hierarchy(params)
         else:
             return f"Error: Unknown direction '{params.direction}'"
 
@@ -124,7 +112,6 @@ async def cogex_get_ontology_hierarchy(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Query complete")
         return response
 
     except EntityResolutionError as e:
@@ -135,28 +122,19 @@ async def cogex_get_ontology_hierarchy(
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Mode Implementations
 # ============================================================================
 
-
 async def _get_ontology_parents(
-    params: OntologyHierarchyQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: OntologyHierarchyQuery) -> dict[str, Any]:
     """
     Mode: parents
     Get parent/ancestor terms in ontology.
     """
-    await ctx.report_progress(0.2, "Resolving ontology term...")
-
     # Resolve ontology term
     resolver = get_resolver()
     term = await resolver.resolve_ontology_term(params.term)
-
-    await ctx.report_progress(0.3, f"Fetching parents for {term.name}...")
-
     adapter = await get_adapter()
 
     # Build query parameters
@@ -170,9 +148,6 @@ async def _get_ontology_parents(
         **query_params,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse parents
     parents = _parse_ontology_terms(parent_data)
 
@@ -182,23 +157,15 @@ async def _get_ontology_parents(
         "children": None,
     }
 
-
 async def _get_ontology_children(
-    params: OntologyHierarchyQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: OntologyHierarchyQuery) -> dict[str, Any]:
     """
     Mode: children
     Get child/descendant terms in ontology.
     """
-    await ctx.report_progress(0.2, "Resolving ontology term...")
-
     # Resolve ontology term
     resolver = get_resolver()
     term = await resolver.resolve_ontology_term(params.term)
-
-    await ctx.report_progress(0.3, f"Fetching children for {term.name}...")
-
     adapter = await get_adapter()
 
     # Build query parameters
@@ -212,9 +179,6 @@ async def _get_ontology_children(
         **query_params,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse children
     children = _parse_ontology_terms(child_data)
 
@@ -224,23 +188,15 @@ async def _get_ontology_children(
         "children": children,
     }
 
-
 async def _get_ontology_hierarchy(
-    params: OntologyHierarchyQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: OntologyHierarchyQuery) -> dict[str, Any]:
     """
     Mode: both
     Get both parents and children in a single query.
     """
-    await ctx.report_progress(0.2, "Resolving ontology term...")
-
     # Resolve ontology term
     resolver = get_resolver()
     term = await resolver.resolve_ontology_term(params.term)
-
-    await ctx.report_progress(0.3, f"Fetching full hierarchy for {term.name}...")
-
     adapter = await get_adapter()
 
     # Build query parameters
@@ -254,9 +210,6 @@ async def _get_ontology_hierarchy(
         **query_params,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse both parents and children
     parents = _parse_ontology_terms(hierarchy_data.get("parents", {}))
     children = _parse_ontology_terms(hierarchy_data.get("children", {}))
@@ -267,11 +220,9 @@ async def _get_ontology_hierarchy(
         "children": children,
     }
 
-
 # ============================================================================
 # Data Parsing Helpers
 # ============================================================================
-
 
 def _parse_ontology_terms(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse ontology terms from backend response."""
@@ -293,11 +244,9 @@ def _parse_ontology_terms(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     return terms
 
-
 # ============================================================================
 # ASCII Tree Generation
 # ============================================================================
-
 
 def _generate_ascii_tree(
     root_term: dict[str, Any] | None,
@@ -367,6 +316,5 @@ def _generate_ascii_tree(
                 lines.append(f"{indent}{symbol} {child['name']} ({child['curie']}) [{rel}]")
 
     return "\n".join(lines)
-
 
 logger.info("✓ Tool 13 (cogex_get_ontology_hierarchy) registered")

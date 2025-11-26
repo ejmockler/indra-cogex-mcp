@@ -17,13 +17,6 @@ from cogex_mcp.tools.gene_feature import cogex_query_gene_or_feature
 logger = logging.getLogger(__name__)
 
 
-class MockContext:
-    """Mock MCP context for testing."""
-
-    async def report_progress(self, progress, message):
-        logger.debug(f"[{int(progress*100)}%] {message}")
-
-
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestTool1GeneToFeatures:
@@ -37,6 +30,8 @@ class TestTool1GeneToFeatures:
         - Tool can be called
         - Entity resolver works
         - Basic query completes
+        - Gene data is present and valid
+        - Expression data is present when requested
         """
         query = GeneFeatureQuery(
             mode=QueryMode.GENE_TO_FEATURES,
@@ -48,21 +43,31 @@ class TestTool1GeneToFeatures:
             limit=5
         )
 
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         # Should not be an error
         assert not result.startswith("Error:"), f"Query failed: {result}"
 
-        # Try to parse JSON response
-        try:
-            data = json.loads(result)
-            assert "gene" in data, "Response should include gene info"
-            assert data["gene"]["name"] == "TP53"
-            logger.info(f"✓ TP53 basic profile: {list(data.keys())}")
-        except json.JSONDecodeError:
-            logger.warning(f"Response not JSON: {result[:200]}")
-            # Still pass if response is not error
+        # Parse and validate JSON response
+        data = json.loads(result)
+
+        # Validate gene data structure
+        assert "gene" in data, "Response should include gene info"
+        assert data["gene"]["name"] == "TP53", "Gene name should be TP53"
+        assert data["gene"]["curie"], "Gene should have CURIE"
+        assert "hgnc:" in data["gene"]["curie"].lower(), "Should be HGNC CURIE"
+
+        # Validate expression data when requested
+        assert "expression" in data, "Expression data should be present when requested"
+        assert isinstance(data["expression"], list), "Expression should be a list"
+        assert len(data["expression"]) > 0, "TP53 should have expression data"
+
+        # Validate expression data structure
+        for expr in data["expression"]:
+            assert "tissue" in expr, "Expression should have tissue info"
+            assert expr["tissue"]["name"], "Tissue name should not be empty"
+
+        logger.info(f"✓ TP53 basic profile validated: {len(data['expression'])} tissues")
 
     async def test_tp53_full_profile(self):
         """
@@ -72,6 +77,7 @@ class TestTool1GeneToFeatures:
         - All feature flags work
         - Multiple data sources integrate
         - Response is well-formed
+        - All requested features are present and non-empty
         """
         query = GeneFeatureQuery(
             mode=QueryMode.GENE_TO_FEATURES,
@@ -84,26 +90,69 @@ class TestTool1GeneToFeatures:
             limit=5
         )
 
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         assert not result.startswith("Error:"), f"Query failed: {result}"
 
-        try:
-            data = json.loads(result)
-            assert "gene" in data
+        # Parse and validate JSON response
+        data = json.loads(result)
 
-            # Check for at least some features
-            feature_keys = ["expression", "go_terms", "pathways", "diseases"]
-            found_features = [k for k in feature_keys if k in data]
+        # Validate gene data
+        assert "gene" in data, "Response should include gene info"
+        assert data["gene"]["name"] == "TP53", "Gene name should be TP53"
 
-            logger.info(f"✓ TP53 full profile with {len(found_features)} feature types")
-            for key in found_features:
-                if data.get(key):
-                    logger.info(f"  - {key}: {len(data[key])} entries")
+        # Validate all requested features are present
+        assert "expression" in data, "Expression should be present when requested"
+        assert "go_terms" in data, "GO terms should be present when requested"
+        assert "pathways" in data, "Pathways should be present when requested"
+        assert "diseases" in data, "Diseases should be present when requested"
 
-        except json.JSONDecodeError:
-            logger.warning("Full profile response not JSON")
+        # Validate features are non-empty for well-studied gene
+        # Note: Some features may be empty if backend lacks that specific data type
+        assert len(data["expression"]) > 0, "TP53 should have expression data"
+
+        # For features that might be empty due to backend limitations, just validate structure
+        feature_counts = {
+            "expression": len(data["expression"]),
+            "go_terms": len(data["go_terms"]),
+            "pathways": len(data["pathways"]),
+            "diseases": len(data["diseases"]),
+        }
+
+        # At least one non-basic feature should have data for TP53
+        non_basic_features = feature_counts["go_terms"] + feature_counts["pathways"] + feature_counts["diseases"]
+        assert non_basic_features > 0, "TP53 should have at least some pathway/disease/GO data"
+
+        # Validate data quality for features that have data
+        for expr in data["expression"]:
+            assert "tissue" in expr, "Expression should have tissue info"
+            assert expr["tissue"]["name"], "Tissue name should not be empty"
+
+        if data["go_terms"]:
+            for go_term in data["go_terms"]:
+                assert "go_term" in go_term, "GO annotation should have term info"
+                assert go_term["go_term"]["curie"], "GO term should have CURIE"
+
+        if data["pathways"]:
+            for pathway in data["pathways"]:
+                assert "pathway" in pathway, "Pathway should have info"
+                assert pathway["pathway"]["name"], "Pathway name should not be empty"
+
+        if data["diseases"]:
+            # Validate at least some diseases have names (backend data quality varies)
+            diseases_with_names = [d for d in data["diseases"] if d.get("disease", {}).get("name")]
+            if diseases_with_names:
+                logger.info(f"  {len(diseases_with_names)}/{len(data['diseases'])} diseases have names")
+            for disease in data["diseases"]:
+                assert "disease" in disease, "Disease association should have disease info"
+                # CURIE should always be present even if name is missing
+                assert disease["disease"].get("curie"), "Disease should have CURIE"
+
+        logger.info(
+            f"✓ TP53 full profile validated: {feature_counts['expression']} tissues, "
+            f"{feature_counts['go_terms']} GO terms, {feature_counts['pathways']} pathways, "
+            f"{feature_counts['diseases']} diseases"
+        )
 
     async def test_tp53_by_curie(self):
         """
@@ -122,17 +171,23 @@ class TestTool1GeneToFeatures:
             limit=5
         )
 
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         assert not result.startswith("Error:"), f"CURIE query failed: {result}"
 
-        try:
-            data = json.loads(result)
-            assert data["gene"]["name"] == "TP53", "CURIE should resolve to TP53"
-            logger.info(f"✓ TP53 via CURIE: {data['gene']}")
-        except json.JSONDecodeError:
-            logger.warning("CURIE response not JSON")
+        # Parse and validate JSON response
+        data = json.loads(result)
+
+        # Validate CURIE resolution
+        assert "gene" in data, "Response should include gene info"
+        assert data["gene"]["name"] == "TP53", "CURIE should resolve to TP53"
+        assert data["gene"]["curie"] == "hgnc:11998", "Should preserve HGNC CURIE"
+
+        # Validate expression data is present
+        assert "expression" in data, "Expression should be present"
+        assert len(data["expression"]) > 0, "TP53 should have expression data"
+
+        logger.info(f"✓ TP53 via CURIE validated: {data['gene']['name']} with {len(data['expression'])} tissues")
 
     async def test_tp53_by_symbol_uppercase(self):
         """Test standard uppercase symbol format."""
@@ -144,8 +199,7 @@ class TestTool1GeneToFeatures:
             limit=5
         )
 
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         assert not result.startswith("Error:")
         logger.info("✓ Symbol format (uppercase) works")
@@ -171,8 +225,7 @@ class TestTool1GeneToFeatures:
                 limit=3
             )
 
-            ctx = MockContext()
-            result = await cogex_query_gene_or_feature(query, ctx)
+            result = await cogex_query_gene_or_feature(query)
 
             if not result.startswith("Error:"):
                 results.append(gene_symbol)
@@ -194,15 +247,14 @@ class TestTool1GeneToFeatures:
             response_format=ResponseFormat.JSON
         )
 
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         assert result.startswith("Error:"), "Should return error message"
         assert "not found" in result.lower(), f"Error should mention 'not found': {result}"
         logger.info(f"✓ Unknown gene error: {result}")
 
     async def test_json_response_format(self):
-        """Verify JSON response is valid JSON."""
+        """Verify JSON response is valid JSON with proper structure."""
         query = GeneFeatureQuery(
             mode=QueryMode.GENE_TO_FEATURES,
             gene="TP53",
@@ -211,16 +263,23 @@ class TestTool1GeneToFeatures:
             limit=5
         )
 
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
-        if not result.startswith("Error:"):
-            try:
-                data = json.loads(result)
-                assert isinstance(data, dict), "JSON response should be a dict"
-                logger.info(f"✓ Valid JSON response with {len(data)} keys")
-            except json.JSONDecodeError as e:
-                pytest.fail(f"Response is not valid JSON: {e}")
+        assert not result.startswith("Error:"), f"Query failed: {result}"
+
+        # Validate JSON parsing
+        data = json.loads(result)
+        assert isinstance(data, dict), "JSON response should be a dict"
+
+        # Validate required keys
+        assert "gene" in data, "Response should have gene key"
+        assert "expression" in data, "Response should have expression key"
+
+        # Validate data types
+        assert isinstance(data["gene"], dict), "Gene should be a dict"
+        assert isinstance(data["expression"], list), "Expression should be a list"
+
+        logger.info(f"✓ Valid JSON response with {len(data)} keys")
 
     async def test_markdown_response_format(self):
         """Test markdown response format."""
@@ -232,8 +291,7 @@ class TestTool1GeneToFeatures:
             limit=5
         )
 
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         if not result.startswith("Error:"):
             # Should contain markdown formatting
@@ -262,8 +320,7 @@ class TestTool1TissueToGenes:
             response_format=ResponseFormat.JSON
         )
 
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         if not result.startswith("Error:"):
             try:
@@ -289,8 +346,7 @@ class TestTool1TissueToGenes:
                 response_format=ResponseFormat.JSON
             )
 
-            ctx = MockContext()
-            result = await cogex_query_gene_or_feature(query, ctx)
+            result = await cogex_query_gene_or_feature(query)
 
             if not result.startswith("Error:"):
                 logger.info(f"✓ {tissue} query completed")
@@ -303,8 +359,7 @@ class TestTool1TissueToGenes:
             response_format=ResponseFormat.JSON
         )
 
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         # Should either error or return empty results
         if result.startswith("Error:"):
@@ -327,8 +382,7 @@ class TestTool1GOTermQueries:
             response_format=ResponseFormat.JSON
         )
 
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         if not result.startswith("Error:"):
             logger.info("✓ GO term query completed")
@@ -351,8 +405,7 @@ class TestTool1ParameterValidation:
             response_format=ResponseFormat.JSON
         )
 
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
         if not result.startswith("Error:"):
             try:
@@ -364,7 +417,7 @@ class TestTool1ParameterValidation:
                 pass
 
     async def test_no_features_enabled(self):
-        """Test query with no features enabled."""
+        """Test query with no features enabled - should still return gene info."""
         query = GeneFeatureQuery(
             mode=QueryMode.GENE_TO_FEATURES,
             gene="TP53",
@@ -375,17 +428,25 @@ class TestTool1ParameterValidation:
             response_format=ResponseFormat.JSON
         )
 
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
 
-        # Should still return gene info
-        if not result.startswith("Error:"):
-            try:
-                data = json.loads(result)
-                assert "gene" in data, "Should return gene info even without features"
-                logger.info("✓ No features query returns gene info")
-            except json.JSONDecodeError:
-                pass
+        assert not result.startswith("Error:"), f"Query failed: {result}"
+
+        # Parse and validate response
+        data = json.loads(result)
+
+        # Should have gene info
+        assert "gene" in data, "Should return gene info even without features"
+        assert data["gene"]["name"] == "TP53", "Gene name should be TP53"
+        assert data["gene"]["curie"], "Gene should have CURIE"
+
+        # Features should be empty lists or not present
+        if "expression" in data:
+            assert isinstance(data["expression"], list), "Expression should be a list if present"
+        if "go_terms" in data:
+            assert isinstance(data["go_terms"], list), "GO terms should be a list if present"
+
+        logger.info("✓ No features query validated - gene info present")
 
 
 @pytest.mark.integration
@@ -406,8 +467,7 @@ class TestTool1Performance:
         )
 
         start = time.time()
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
         elapsed = time.time() - start
 
         logger.info(f"✓ Query completed in {elapsed:.2f}s")
@@ -432,8 +492,7 @@ class TestTool1Performance:
         )
 
         start = time.time()
-        ctx = MockContext()
-        result = await cogex_query_gene_or_feature(query, ctx)
+        result = await cogex_query_gene_or_feature(query)
         elapsed = time.time() - start
 
         logger.info(f"✓ Complex query completed in {elapsed:.2f}s")

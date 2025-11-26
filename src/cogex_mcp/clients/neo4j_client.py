@@ -839,9 +839,11 @@ class Neo4jClient:
             """,
             # ========================================================================
             # Tool 6: Pathway Queries
+            # CORRECTED: Uses 'haspart' relationship (Pathway->Gene direction)
             # ========================================================================
             "get_genes_in_pathway": """
-                MATCH (g:BioEntity)-[:in_pathway]->(p:BioEntity)
+                // CORRECTED: haspart goes FROM pathway TO gene
+                MATCH (p:BioEntity)-[:haspart]->(g:BioEntity)
                 WHERE p.id = $pathway_id
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
@@ -857,7 +859,8 @@ class Neo4jClient:
                 SKIP $offset LIMIT $limit
             """,
             "get_pathways_for_gene": """
-                MATCH (g:BioEntity)-[:in_pathway]->(p:BioEntity)
+                // CORRECTED: haspart goes FROM pathway TO gene
+                MATCH (p:BioEntity)-[:haspart]->(g:BioEntity)
                 WHERE g.id = $gene_id
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
@@ -873,7 +876,8 @@ class Neo4jClient:
                 SKIP $offset LIMIT $limit
             """,
             "get_shared_pathways_for_genes": """
-                MATCH (g:BioEntity)-[:in_pathway]->(p:BioEntity)
+                // CORRECTED: haspart goes FROM pathway TO gene
+                MATCH (p:BioEntity)-[:haspart]->(g:BioEntity)
                 WHERE g.id IN $gene_ids
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
@@ -891,7 +895,8 @@ class Neo4jClient:
                 SKIP $offset LIMIT $limit
             """,
             "is_gene_in_pathway": """
-                MATCH (g:BioEntity)-[:in_pathway]->(p:BioEntity)
+                // CORRECTED: haspart goes FROM pathway TO gene
+                MATCH (p:BioEntity)-[:haspart]->(g:BioEntity)
                 WHERE g.id = $gene_id
                   AND p.id = $pathway_id
                   AND g.id STARTS WITH 'hgnc:'
@@ -904,47 +909,54 @@ class Neo4jClient:
             """,
             # ========================================================================
             # Tool 7: Cell Line Queries
+            # CORRECTED: Uses direct 'mutated_in' relationship (Gene->CellLine)
+            # Note: Cell lines use CCLE IDs (e.g., ccle:A549_LUNG)
             # ========================================================================
             "get_mutations_for_cell_line": """
-                MATCH (c:BioEntity)-[:has_mutation]->(m:BioEntity)-[:affects]->(g:BioEntity)
-                WHERE c.name = $cell_line
-                  AND c.id STARTS WITH 'ccle:'
+                // CORRECTED: Direct Gene -[:mutated_in]-> CellLine relationship
+                // No intermediate mutation nodes, simpler than expected
+                MATCH (g:BioEntity)-[:mutated_in]->(c:BioEntity)
+                WHERE c.id = $cell_line
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
+                  AND c.id STARTS WITH 'ccle:'
                 RETURN
                   g.name AS gene,
                   g.id AS gene_id,
-                  m.mutation_type AS mutation_type,
-                  m.protein_change AS protein_change
+                  'mutation' AS mutation_type,
+                  null AS protein_change
                 SKIP $offset LIMIT $limit
             """,
             "get_copy_number_for_cell_line": """
-                MATCH (c:BioEntity)-[:has_copy_number]->(cn:BioEntity)-[:affects]->(g:BioEntity)
-                WHERE c.name = $cell_line
-                  AND c.id STARTS WITH 'ccle:'
+                // CORRECTED: Direct Gene -[:copy_number_altered_in]-> CellLine
+                MATCH (g:BioEntity)-[:copy_number_altered_in]->(c:BioEntity)
+                WHERE c.id = $cell_line
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
+                  AND c.id STARTS WITH 'ccle:'
                 RETURN
                   g.name AS gene,
                   g.id AS gene_id,
-                  cn.copy_number AS copy_number
+                  'altered' AS copy_number
                 LIMIT $limit
             """,
             "get_dependencies_for_cell_line": """
-                MATCH (c:BioEntity)-[:depends_on]->(g:BioEntity)
-                WHERE c.name = $cell_line
-                  AND c.id STARTS WITH 'ccle:'
-                  AND g.id STARTS WITH 'hgnc:'
-                  AND g.obsolete = false
+                // Gene dependency data may not be in Neo4j
+                // Placeholder query - may need REST API fallback
+                MATCH (g:BioEntity)-[:codependent_with]-(other:BioEntity)
+                WHERE g.id = $cell_line
+                  AND other.id STARTS WITH 'hgnc:'
+                  AND other.obsolete = false
                 RETURN
-                  g.name AS gene,
-                  g.id AS gene_id
+                  other.name AS gene,
+                  other.id AS gene_id
                 LIMIT $limit
             """,
             "get_expression_for_cell_line": """
+                // Expression data may not be in Neo4j
+                // Placeholder query - may need REST API fallback
                 MATCH (c:BioEntity)-[:expresses]->(g:BioEntity)
-                WHERE c.name = $cell_line
-                  AND c.id STARTS WITH 'ccle:'
+                WHERE c.id = $cell_line
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
                 RETURN
@@ -953,21 +965,22 @@ class Neo4jClient:
                 LIMIT $limit
             """,
             "get_cell_lines_for_mutation": """
-                MATCH (c:BioEntity)-[:has_mutation]->(m:BioEntity)-[:affects]->(g:BioEntity)
+                // CORRECTED: Direct Gene -[:mutated_in]-> CellLine
+                MATCH (g:BioEntity)-[:mutated_in]->(c:BioEntity)
                 WHERE g.id = $gene_id
-                  AND c.id STARTS WITH 'ccle:'
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
+                  AND c.id STARTS WITH 'ccle:'
                 RETURN
                   c.name AS cell_line,
                   c.id AS ccle_id
                 SKIP $offset LIMIT $limit
             """,
             "is_mutated_in_cell_line": """
-                MATCH (c:BioEntity)-[:has_mutation]->(m:BioEntity)-[:affects]->(g:BioEntity)
-                WHERE c.name = $cell_line
-                  AND g.id = $gene_id
-                  AND c.id STARTS WITH 'ccle:'
+                // CORRECTED: Direct Gene -[:mutated_in]-> CellLine
+                MATCH (g:BioEntity)-[:mutated_in]->(c:BioEntity)
+                WHERE g.id = $gene_id
+                  AND c.id = $cell_line
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
                 RETURN
@@ -1062,54 +1075,63 @@ class Neo4jClient:
             """,
             # ========================================================================
             # Tool 10: Variant Queries
+            # CORRECTED: Uses 'variant_gene_association' (Variant->Gene direction)
+            # Note: Variants use dbsnp: namespace (e.g., dbsnp:rs7412)
             # ========================================================================
             "get_variants_for_gene": """
-                MATCH (g:BioEntity)-[:has_variant]->(v:BioEntity)
+                // CORRECTED: Variant -[:variant_gene_association]-> Gene
+                MATCH (v:BioEntity)-[:variant_gene_association]->(g:BioEntity)
                 WHERE g.id = $gene_id
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
-                  AND v.id STARTS WITH 'rs'
+                  AND v.id STARTS WITH 'dbsnp:'
                 RETURN
                   v.id AS rsid,
-                  v.chromosome AS chromosome,
-                  v.position AS position,
-                  v.ref_allele AS ref_allele,
-                  v.alt_allele AS alt_allele,
-                  v.p_value AS p_value
+                  v.name AS variant_name,
+                  null AS chromosome,
+                  null AS position,
+                  null AS ref_allele,
+                  null AS alt_allele,
+                  null AS p_value
                 SKIP $offset LIMIT $limit
             """,
             "get_variants_for_disease": """
-                MATCH (d:BioEntity)-[:has_variant]->(v:BioEntity)
+                // CORRECTED: Disease -[:variant_disease_association]-> Variant
+                MATCH (d:BioEntity)-[:variant_disease_association]->(v:BioEntity)
                 WHERE d.id = $disease_id
-                  AND v.id STARTS WITH 'rs'
+                  AND v.id STARTS WITH 'dbsnp:'
                 RETURN
                   v.id AS rsid,
-                  v.chromosome AS chromosome,
-                  v.position AS position,
-                  v.ref_allele AS ref_allele,
-                  v.alt_allele AS alt_allele,
-                  v.p_value AS p_value,
-                  v.trait AS trait
+                  v.name AS variant_name,
+                  null AS chromosome,
+                  null AS position,
+                  null AS ref_allele,
+                  null AS alt_allele,
+                  null AS p_value,
+                  null AS trait
                 SKIP $offset LIMIT $limit
             """,
             "get_variants_for_phenotype": """
-                MATCH (ph:BioEntity)-[:has_variant]->(v:BioEntity)
+                // CORRECTED: Phenotype -[:variant_phenotype_association]-> Variant
+                MATCH (ph:BioEntity)-[:variant_phenotype_association]->(v:BioEntity)
                 WHERE ph.id = $phenotype_id
-                  AND v.id STARTS WITH 'rs'
+                  AND v.id STARTS WITH 'dbsnp:'
                 RETURN
                   v.id AS rsid,
-                  v.chromosome AS chromosome,
-                  v.position AS position,
-                  v.p_value AS p_value,
-                  v.trait AS trait
+                  v.name AS variant_name,
+                  null AS chromosome,
+                  null AS position,
+                  null AS p_value,
+                  null AS trait
                 SKIP $offset LIMIT $limit
             """,
             "get_genes_for_variant": """
-                MATCH (g:BioEntity)-[:has_variant]->(v:BioEntity)
+                // CORRECTED: Variant -[:variant_gene_association]-> Gene
+                MATCH (v:BioEntity)-[:variant_gene_association]->(g:BioEntity)
                 WHERE v.id = $variant_id
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
-                  AND v.id STARTS WITH 'rs'
+                  AND v.id STARTS WITH 'dbsnp:'
                 RETURN
                   g.name AS gene,
                   g.id AS gene_id,
@@ -1117,9 +1139,10 @@ class Neo4jClient:
                 SKIP $offset LIMIT $limit
             """,
             "get_phenotypes_for_variant": """
-                MATCH (v:BioEntity)-[:associated_with]->(ph:BioEntity)
+                // CORRECTED: Variant -[:variant_phenotype_association]-> Phenotype
+                MATCH (v:BioEntity)-[:variant_phenotype_association]->(ph:BioEntity)
                 WHERE v.id = $variant_id
-                  AND v.id STARTS WITH 'rs'
+                  AND v.id STARTS WITH 'dbsnp:'
                   AND ph.id STARTS WITH 'HP:'
                 RETURN
                   ph.name AS phenotype,
@@ -1128,13 +1151,14 @@ class Neo4jClient:
                 SKIP $offset LIMIT $limit
             """,
             "is_variant_associated": """
-                MATCH (d:BioEntity)-[:has_variant]->(v:BioEntity)
-                WHERE v.id = $variant_id
-                  AND d.id = $disease_id
-                  AND v.id STARTS WITH 'rs'
+                // CORRECTED: Disease -[:variant_disease_association]-> Variant
+                MATCH (d:BioEntity)-[:variant_disease_association]->(v:BioEntity)
+                WHERE d.id = $disease_id
+                  AND v.id = $variant_id
+                  AND v.id STARTS WITH 'dbsnp:'
                 RETURN
                   count(*) > 0 AS is_associated,
-                  v.p_value AS p_value
+                  null AS p_value
                 LIMIT 1
             """,
             # ========================================================================
@@ -1387,109 +1411,141 @@ class Neo4jClient:
                 SKIP $offset LIMIT $limit
             """,
             # ========================================================================
-            # Tool 2: Subnetwork extraction - INDRA statement queries
+            # Tool 2: Subnetwork extraction - INDRA relationship queries
+            # CORRECTED: Uses indra_rel relationships, not Statement nodes
             # ========================================================================
             "extract_subnetwork": """
-                // Direct mode: Find direct INDRA statements between specified genes
-                MATCH (s:Statement)
-                WHERE s.subj_id IN $gene_ids
-                  AND s.obj_id IN $gene_ids
-                  AND s.subj_id <> s.obj_id
-                  AND s.evidence_count >= $min_evidence
-                  AND s.belief >= $min_belief
-                WITH s
-                ORDER BY s.belief DESC, s.evidence_count DESC
+                // Direct mode: Find direct INDRA relationships between specified genes
+                MATCH (g1:BioEntity)-[r:indra_rel]-(g2:BioEntity)
+                WHERE g1.id IN $gene_ids
+                  AND g2.id IN $gene_ids
+                  AND g1.id <> g2.id
+                  AND r.evidence_count >= $min_evidence
+                  AND r.belief >= $min_belief
+                  AND g1.id STARTS WITH 'hgnc:'
+                  AND g2.id STARTS WITH 'hgnc:'
+                WITH g1, g2, r
+                ORDER BY r.belief DESC, r.evidence_count DESC
                 LIMIT $max_statements
                 RETURN
-                  s.hash AS hash,
-                  s.type AS type,
-                  s.subj_name AS subj_name,
-                  s.subj_id AS subj_id,
-                  s.obj_name AS obj_name,
-                  s.obj_id AS obj_id,
-                  s.residue AS residue,
-                  s.position AS position,
-                  s.evidence_count AS evidence_count,
-                  s.belief AS belief,
-                  s.sources AS sources
+                  r.stmt_hash AS hash,
+                  r.stmt_type AS type,
+                  g1.name AS subj_name,
+                  g1.id AS subj_id,
+                  g2.name AS obj_name,
+                  g2.id AS obj_id,
+                  null AS residue,
+                  null AS position,
+                  r.evidence_count AS evidence_count,
+                  r.belief AS belief,
+                  r.source_counts AS sources
             """,
             "indra_subnetwork": """
-                // Direct edges between genes
-                MATCH (s:Statement)
-                WHERE s.subj_id IN $gene_ids
-                  AND s.obj_id IN $gene_ids
-                  AND s.subj_id <> s.obj_id
-                  AND s.evidence_count >= $min_evidence
-                  AND s.belief >= $min_belief
-                WITH s
-                ORDER BY s.belief DESC, s.evidence_count DESC
+                // Direct edges between genes via indra_rel relationships
+                MATCH (g1:BioEntity)-[r:indra_rel]-(g2:BioEntity)
+                WHERE g1.id IN $gene_ids
+                  AND g2.id IN $gene_ids
+                  AND g1.id <> g2.id
+                  AND r.evidence_count >= $min_evidence
+                  AND r.belief >= $min_belief
+                  AND g1.id STARTS WITH 'hgnc:'
+                  AND g2.id STARTS WITH 'hgnc:'
+                WITH g1, g2, r
+                ORDER BY r.belief DESC, r.evidence_count DESC
                 LIMIT $max_statements
                 RETURN
-                  s.hash AS hash,
-                  s.type AS type,
-                  s.subj_name AS subj_name,
-                  s.subj_id AS subj_id,
-                  s.obj_name AS obj_name,
-                  s.obj_id AS obj_id,
-                  s.residue AS residue,
-                  s.position AS position,
-                  s.evidence_count AS evidence_count,
-                  s.belief AS belief,
-                  s.sources AS sources
+                  r.stmt_hash AS hash,
+                  r.stmt_type AS type,
+                  g1.name AS subj_name,
+                  g1.id AS subj_id,
+                  g2.name AS obj_name,
+                  g2.id AS obj_id,
+                  null AS residue,
+                  null AS position,
+                  r.evidence_count AS evidence_count,
+                  r.belief AS belief,
+                  r.source_counts AS sources
             """,
             "indra_mediated_subnetwork": """
-                // Two-hop paths: A→X→B
-                // Return all statements in the two-hop paths
-                MATCH (s1:Statement), (s2:Statement)
-                WHERE s1.subj_id IN $gene_ids
-                  AND s2.obj_id IN $gene_ids
-                  AND s1.obj_id = s2.subj_id
-                  AND s1.subj_id <> s2.obj_id
-                  AND s1.evidence_count >= $min_evidence
-                  AND s2.evidence_count >= $min_evidence
-                  AND s1.belief >= $min_belief
-                  AND s2.belief >= $min_belief
-                WITH s1, s2
-                ORDER BY (s1.belief + s2.belief) / 2.0 DESC
+                // Two-hop paths: A→X→B via indra_rel relationships
+                // Find genes that mediate relationships between input genes
+                MATCH (g1:BioEntity)-[r1:indra_rel]-(mediator:BioEntity)-[r2:indra_rel]-(g2:BioEntity)
+                WHERE g1.id IN $gene_ids
+                  AND g2.id IN $gene_ids
+                  AND g1.id <> g2.id
+                  AND mediator.id STARTS WITH 'hgnc:'
+                  AND NOT mediator.id IN $gene_ids
+                  AND r1.evidence_count >= $min_evidence
+                  AND r2.evidence_count >= $min_evidence
+                  AND r1.belief >= $min_belief
+                  AND r2.belief >= $min_belief
+                  AND g1.id STARTS WITH 'hgnc:'
+                  AND g2.id STARTS WITH 'hgnc:'
+                WITH g1, mediator, g2, r1, r2
+                ORDER BY (r1.belief + r2.belief) / 2.0 DESC
                 LIMIT $max_statements
-                WITH collect(s1) + collect(s2) AS all_statements
-                UNWIND all_statements AS s
-                WITH DISTINCT s
-                RETURN
-                  s.hash AS hash,
-                  s.type AS type,
-                  s.subj_name AS subj_name,
-                  s.subj_id AS subj_id,
-                  s.obj_name AS obj_name,
-                  s.obj_id AS obj_id,
-                  s.residue AS residue,
-                  s.position AS position,
-                  s.evidence_count AS evidence_count,
-                  s.belief AS belief,
-                  s.sources AS sources
+                WITH g1, mediator, g2, r1, r2
+                UNWIND [
+                  {
+                    hash: r1.stmt_hash,
+                    type: r1.stmt_type,
+                    subj_name: g1.name,
+                    subj_id: g1.id,
+                    obj_name: mediator.name,
+                    obj_id: mediator.id,
+                    evidence_count: r1.evidence_count,
+                    belief: r1.belief,
+                    sources: r1.source_counts
+                  },
+                  {
+                    hash: r2.stmt_hash,
+                    type: r2.stmt_type,
+                    subj_name: mediator.name,
+                    subj_id: mediator.id,
+                    obj_name: g2.name,
+                    obj_id: g2.id,
+                    evidence_count: r2.evidence_count,
+                    belief: r2.belief,
+                    sources: r2.source_counts
+                  }
+                ] AS stmt
+                RETURN DISTINCT
+                  stmt.hash AS hash,
+                  stmt.type AS type,
+                  stmt.subj_name AS subj_name,
+                  stmt.subj_id AS subj_id,
+                  stmt.obj_name AS obj_name,
+                  stmt.obj_id AS obj_id,
+                  null AS residue,
+                  null AS position,
+                  stmt.evidence_count AS evidence_count,
+                  stmt.belief AS belief,
+                  stmt.sources AS sources
             """,
             "source_target_analysis": """
-                // One source gene to multiple targets
-                MATCH (s:Statement)
-                WHERE s.subj_id = $source_gene_id
-                  AND ($target_gene_ids IS NULL OR s.obj_id IN $target_gene_ids)
-                  AND s.evidence_count >= $min_evidence
-                  AND s.belief >= $min_belief
-                WITH s
-                ORDER BY s.belief DESC, s.evidence_count DESC
+                // One source gene to multiple targets via indra_rel
+                MATCH (source:BioEntity)-[r:indra_rel]->(target:BioEntity)
+                WHERE source.id = $source_gene_id
+                  AND ($target_gene_ids IS NULL OR target.id IN $target_gene_ids)
+                  AND r.evidence_count >= $min_evidence
+                  AND r.belief >= $min_belief
+                  AND source.id STARTS WITH 'hgnc:'
+                  AND target.id STARTS WITH 'hgnc:'
+                WITH source, target, r
+                ORDER BY r.belief DESC, r.evidence_count DESC
                 LIMIT $max_statements
                 RETURN
-                  s.hash AS hash,
-                  s.type AS type,
-                  s.subj_name AS subj_name,
-                  s.subj_id AS subj_id,
-                  s.obj_name AS obj_name,
-                  s.obj_id AS obj_id,
-                  s.residue AS residue,
-                  s.position AS position,
-                  s.evidence_count AS evidence_count,
-                  s.belief AS belief,
-                  s.sources AS sources
+                  r.stmt_hash AS hash,
+                  r.stmt_type AS type,
+                  source.name AS subj_name,
+                  source.id AS subj_id,
+                  target.name AS obj_name,
+                  target.id AS obj_id,
+                  null AS residue,
+                  null AS position,
+                  r.evidence_count AS evidence_count,
+                  r.belief AS belief,
+                  r.source_counts AS sources
             """,
             # ========================================================================
             # Tool 3: Enrichment analysis placeholder
@@ -1573,6 +1629,653 @@ class Neo4jClient:
         except Exception as e:
             logger.error(f"Neo4j health check failed: {e}")
             raise
+
+    # ========================================================================
+    # Tool 11: Identifier Mapping Methods
+    # ========================================================================
+
+    async def get_xrefs_for_entity(
+        self,
+        entity_id: str,
+        target_namespace: str | None = None,
+        limit: int = 50,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Get cross-references for an entity.
+
+        Uses `xref` relationships in Neo4j to find equivalent identifiers
+        in other namespaces.
+
+        Args:
+            entity_id: Source entity CURIE (e.g., 'hgnc:11998')
+            target_namespace: Filter to specific namespace (e.g., 'uniprot')
+            limit: Max results
+
+        Returns:
+            {
+                "success": True,
+                "records": [
+                    {
+                        "source_id": "hgnc:11998",
+                        "target_id": "uniprot:P04637",
+                        "target_namespace": "uniprot"
+                    }
+                ],
+                "count": 1
+            }
+        """
+        try:
+            # Use map_identifiers query with appropriate parameters
+            result = await self.execute_query(
+                "map_identifiers",
+                identifiers=[entity_id],
+                to_namespace=target_namespace if target_namespace else "",
+                limit=limit,
+                timeout=timeout
+            )
+
+            return {
+                "success": True,
+                "records": result["records"],
+                "count": result["count"],
+            }
+        except Exception as e:
+            logger.error(f"Error getting xrefs for {entity_id}: {e}")
+            return {"success": False, "records": [], "count": 0, "error": str(e)}
+
+    async def map_identifiers(
+        self,
+        identifiers: list[str],
+        to_namespace: str,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Map identifiers from one namespace to another.
+
+        Args:
+            identifiers: List of source CURIEs
+            to_namespace: Target namespace (e.g., 'uniprot')
+
+        Returns:
+            {
+                "success": True,
+                "records": [
+                    {
+                        "source_id": "hgnc:11998",
+                        "target_ids": ["uniprot:P04637"]
+                    }
+                ],
+                "count": 1
+            }
+        """
+        try:
+            result = await self.execute_query(
+                "map_identifiers",
+                identifiers=identifiers,
+                to_namespace=to_namespace,
+                timeout=timeout
+            )
+
+            return {
+                "success": True,
+                "records": result["records"],
+                "count": result["count"],
+            }
+        except Exception as e:
+            logger.error(f"Error mapping identifiers: {e}")
+            return {"success": False, "records": [], "count": 0, "error": str(e)}
+
+    # ========================================================================
+    # Tool 12: Pathway Methods
+    # ========================================================================
+
+    async def get_pathway_hierarchy(
+        self,
+        pathway_id: str,
+        max_depth: int = 2,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Get pathway hierarchy (parent/child pathways).
+
+        Args:
+            pathway_id: Pathway CURIE (e.g., 'reactome:R-HSA-109581')
+            max_depth: How many levels to traverse
+
+        Returns:
+            Records with pathway relationships
+        """
+        try:
+            # Neo4j schema doesn't have pathway hierarchy relationships
+            # This would need to be implemented when data is available
+            logger.warning(f"Pathway hierarchy not implemented in Neo4j schema")
+            return {"success": False, "records": [], "count": 0, "error": "Not implemented"}
+        except Exception as e:
+            logger.error(f"Error getting pathway hierarchy for {pathway_id}: {e}")
+            return {"success": False, "records": [], "count": 0, "error": str(e)}
+
+    async def get_pathway_genes(
+        self,
+        pathway_id: str,
+        limit: int = 100,
+        offset: int = 0,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Get genes in a pathway.
+
+        Args:
+            pathway_id: Pathway CURIE
+            limit: Max results
+            offset: Skip first N results
+
+        Returns:
+            Records with genes in pathway
+        """
+        try:
+            result = await self.execute_query(
+                "get_genes_in_pathway",
+                pathway_id=pathway_id,
+                limit=limit,
+                offset=offset,
+                timeout=timeout
+            )
+
+            return {
+                "success": True,
+                "records": result["records"],
+                "count": result["count"],
+            }
+        except Exception as e:
+            logger.error(f"Error getting genes for pathway {pathway_id}: {e}")
+            return {"success": False, "records": [], "count": 0, "error": str(e)}
+
+    # ========================================================================
+    # Tool 13: Ontology Hierarchy Methods
+    # ========================================================================
+
+    async def get_ontology_parents(
+        self,
+        term_id: str,
+        max_depth: int = 2,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Get parent terms in ontology hierarchy.
+
+        Uses `isa` and `partof` relationships to traverse upward.
+
+        Args:
+            term_id: Term CURIE (e.g., 'GO:0006915')
+            max_depth: How many levels up (1 = immediate parents)
+
+        Returns:
+            Records with: parent_id (curie), parent_name (name), relationship_type (relationship), depth
+        """
+        try:
+            result = await self.execute_query(
+                "get_ontology_parents",
+                term_id=term_id,
+                max_depth=max_depth,
+                timeout=timeout
+            )
+
+            return {
+                "success": True,
+                "records": result["records"],
+                "count": result["count"],
+            }
+        except Exception as e:
+            logger.error(f"Error getting parents for {term_id}: {e}")
+            return {"success": False, "records": [], "count": 0, "error": str(e)}
+
+    async def get_ontology_children(
+        self,
+        term_id: str,
+        max_depth: int = 2,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Get child terms in ontology hierarchy.
+
+        Uses `isa` and `partof` relationships to traverse downward.
+
+        Args:
+            term_id: Term CURIE (e.g., 'GO:0006915')
+            max_depth: How many levels down
+
+        Returns:
+            Records with child terms
+        """
+        try:
+            result = await self.execute_query(
+                "get_ontology_children",
+                term_id=term_id,
+                max_depth=max_depth,
+                timeout=timeout
+            )
+
+            return {
+                "success": True,
+                "records": result["records"],
+                "count": result["count"],
+            }
+        except Exception as e:
+            logger.error(f"Error getting children for {term_id}: {e}")
+            return {"success": False, "records": [], "count": 0, "error": str(e)}
+
+    async def get_ontology_ancestors(
+        self,
+        term_id: str,
+        max_depth: int = 10,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Get all ancestors (transitive closure) in ontology hierarchy.
+
+        Args:
+            term_id: Term CURIE
+            max_depth: Maximum depth to traverse
+
+        Returns:
+            Records with all ancestor terms
+        """
+        try:
+            # Same as get_ontology_parents but with higher depth
+            result = await self.execute_query(
+                "get_ontology_parents",
+                term_id=term_id,
+                max_depth=max_depth,
+                timeout=timeout
+            )
+
+            return {
+                "success": True,
+                "records": result["records"],
+                "count": result["count"],
+            }
+        except Exception as e:
+            logger.error(f"Error getting ancestors for {term_id}: {e}")
+            return {"success": False, "records": [], "count": 0, "error": str(e)}
+
+    # ========================================================================
+    # Tool 14: Relationship Checking Methods
+    # ========================================================================
+
+    async def check_relationship(
+        self,
+        gene1_id: str,
+        gene2_id: str,
+        relationship_types: list[str] | None = None,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Check if a relationship exists between two genes.
+
+        Queries indra_rel relationships primarily.
+
+        Args:
+            gene1_id: First gene CURIE
+            gene2_id: Second gene CURIE
+            relationship_types: Filter by stmt_type (e.g., ['Phosphorylation'])
+
+        Returns:
+            {
+                "success": True,
+                "exists": True,
+                "relationships": [
+                    {
+                        "type": "Phosphorylation",
+                        "belief": 0.95,
+                        "evidence_count": 10
+                    }
+                ]
+            }
+        """
+        try:
+            # Query for indra_rel relationships between the two genes
+            cypher = """
+                MATCH (g1:BioEntity)-[r:indra_rel]-(g2:BioEntity)
+                WHERE g1.id = $gene1_id
+                  AND g2.id = $gene2_id
+                  AND g1.id STARTS WITH 'hgnc:'
+                  AND g2.id STARTS WITH 'hgnc:'
+            """
+
+            if relationship_types:
+                cypher += "  AND r.stmt_type IN $relationship_types\n"
+
+            cypher += """
+                RETURN
+                  r.stmt_type AS type,
+                  r.belief AS belief,
+                  r.evidence_count AS evidence_count
+                ORDER BY r.belief DESC
+                LIMIT 20
+            """
+
+            params = {
+                "gene1_id": gene1_id,
+                "gene2_id": gene2_id,
+            }
+            if relationship_types:
+                params["relationship_types"] = relationship_types
+
+            records = await self.execute_raw_cypher(cypher, timeout=timeout, **params)
+
+            return {
+                "success": True,
+                "exists": len(records) > 0,
+                "relationships": records,
+                "count": len(records),
+            }
+        except Exception as e:
+            logger.error(f"Error checking relationship {gene1_id} - {gene2_id}: {e}")
+            return {
+                "success": False,
+                "exists": False,
+                "relationships": [],
+                "count": 0,
+                "error": str(e)
+            }
+
+    async def get_relationship_types(
+        self,
+        gene1_id: str,
+        gene2_id: str,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Get all relationship types between two genes.
+
+        Args:
+            gene1_id: First gene CURIE
+            gene2_id: Second gene CURIE
+
+        Returns:
+            List of relationship types (stmt_types) that exist
+        """
+        try:
+            result = await self.check_relationship(
+                gene1_id=gene1_id,
+                gene2_id=gene2_id,
+                relationship_types=None,
+                timeout=timeout
+            )
+
+            # Extract unique relationship types
+            types = list(set([r["type"] for r in result.get("relationships", [])]))
+
+            return {
+                "success": True,
+                "types": types,
+                "count": len(types),
+            }
+        except Exception as e:
+            logger.error(f"Error getting relationship types: {e}")
+            return {"success": False, "types": [], "count": 0, "error": str(e)}
+
+    # ========================================================================
+    # Tool 15: Clinical Trials Methods
+    # ========================================================================
+
+    async def get_trials_for_drug(
+        self,
+        drug_id: str,
+        phase: str | None = None,
+        status: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Get clinical trials for a drug.
+
+        Args:
+            drug_id: Drug CURIE
+            phase: Filter by phase (e.g., 'Phase 3')
+            status: Filter by status (e.g., 'Completed')
+            limit: Max results
+            offset: Skip first N results
+
+        Returns:
+            Records with trial information
+        """
+        try:
+            result = await self.execute_query(
+                "get_trials_for_drug",
+                drug_id=drug_id,
+                limit=limit,
+                offset=offset,
+                timeout=timeout
+            )
+
+            # Filter by phase/status if specified
+            records = result["records"]
+            if phase:
+                records = [r for r in records if r.get("phase") == phase]
+            if status:
+                records = [r for r in records if r.get("status") == status]
+
+            return {
+                "success": True,
+                "records": records,
+                "count": len(records),
+            }
+        except Exception as e:
+            logger.error(f"Error getting trials for drug {drug_id}: {e}")
+            return {"success": False, "records": [], "count": 0, "error": str(e)}
+
+    async def get_trials_for_disease(
+        self,
+        disease_id: str,
+        phase: str | None = None,
+        status: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Get clinical trials for a disease.
+
+        Args:
+            disease_id: Disease CURIE
+            phase: Filter by phase
+            status: Filter by status
+            limit: Max results
+            offset: Skip first N results
+
+        Returns:
+            Records with trial information
+        """
+        try:
+            result = await self.execute_query(
+                "get_trials_for_disease",
+                disease_id=disease_id,
+                limit=limit,
+                offset=offset,
+                timeout=timeout
+            )
+
+            # Filter by phase/status if specified
+            records = result["records"]
+            if phase:
+                records = [r for r in records if r.get("phase") == phase]
+            if status:
+                records = [r for r in records if r.get("status") == status]
+
+            return {
+                "success": True,
+                "records": records,
+                "count": len(records),
+            }
+        except Exception as e:
+            logger.error(f"Error getting trials for disease {disease_id}: {e}")
+            return {"success": False, "records": [], "count": 0, "error": str(e)}
+
+    async def get_trial_by_id(
+        self,
+        nct_id: str,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Get clinical trial by NCT ID.
+
+        Args:
+            nct_id: NCT identifier (e.g., 'NCT00000102')
+
+        Returns:
+            Trial details
+        """
+        try:
+            result = await self.execute_query(
+                "get_trial_by_id",
+                nct_id=nct_id,
+                timeout=timeout
+            )
+
+            return {
+                "success": True,
+                "records": result["records"],
+                "count": result["count"],
+            }
+        except Exception as e:
+            logger.error(f"Error getting trial {nct_id}: {e}")
+            return {"success": False, "records": [], "count": 0, "error": str(e)}
+
+    # ========================================================================
+    # Tool 16: Protein Function Methods
+    # ========================================================================
+
+    async def get_activities_for_protein(
+        self,
+        gene_id: str,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Get molecular activities/functions for a protein.
+
+        Args:
+            gene_id: Gene CURIE
+
+        Returns:
+            Records with activities (kinase, phosphatase, etc.)
+        """
+        try:
+            result = await self.execute_query(
+                "get_enzyme_activities",
+                gene_id=gene_id,
+                timeout=timeout
+            )
+
+            return {
+                "success": True,
+                "records": result["records"],
+                "count": result["count"],
+            }
+        except Exception as e:
+            logger.error(f"Error getting activities for {gene_id}: {e}")
+            return {"success": False, "records": [], "count": 0, "error": str(e)}
+
+    async def is_kinase(
+        self,
+        gene_id: str,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Check if a gene encodes a kinase.
+
+        Args:
+            gene_id: Gene CURIE
+
+        Returns:
+            {"success": True, "result": True/False}
+        """
+        try:
+            result = await self.execute_query(
+                "is_kinase",
+                gene_id=gene_id,
+                timeout=timeout
+            )
+
+            is_kinase = False
+            if result["records"]:
+                is_kinase = result["records"][0].get("result", False)
+
+            return {
+                "success": True,
+                "result": is_kinase,
+            }
+        except Exception as e:
+            logger.error(f"Error checking if {gene_id} is kinase: {e}")
+            return {"success": False, "result": False, "error": str(e)}
+
+    async def is_phosphatase(
+        self,
+        gene_id: str,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Check if a gene encodes a phosphatase.
+
+        Args:
+            gene_id: Gene CURIE
+
+        Returns:
+            {"success": True, "result": True/False}
+        """
+        try:
+            result = await self.execute_query(
+                "is_phosphatase",
+                gene_id=gene_id,
+                timeout=timeout
+            )
+
+            is_phosphatase = False
+            if result["records"]:
+                is_phosphatase = result["records"][0].get("result", False)
+
+            return {
+                "success": True,
+                "result": is_phosphatase,
+            }
+        except Exception as e:
+            logger.error(f"Error checking if {gene_id} is phosphatase: {e}")
+            return {"success": False, "result": False, "error": str(e)}
+
+    async def is_transcription_factor(
+        self,
+        gene_id: str,
+        timeout: int = 30000,
+    ) -> dict[str, Any]:
+        """
+        Check if a gene encodes a transcription factor.
+
+        Args:
+            gene_id: Gene CURIE
+
+        Returns:
+            {"success": True, "result": True/False}
+        """
+        try:
+            result = await self.execute_query(
+                "is_transcription_factor",
+                gene_id=gene_id,
+                timeout=timeout
+            )
+
+            is_tf = False
+            if result["records"]:
+                is_tf = result["records"][0].get("result", False)
+
+            return {
+                "success": True,
+                "result": is_tf,
+            }
+        except Exception as e:
+            logger.error(f"Error checking if {gene_id} is transcription factor: {e}")
+            return {"success": False, "result": False, "error": str(e)}
 
     async def execute_raw_cypher(
         self,

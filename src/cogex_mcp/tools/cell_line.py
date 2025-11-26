@@ -14,19 +14,15 @@ Modes:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
-    READONLY_ANNOTATIONS,
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import (
     CellLineQuery,
     CellLineQueryMode,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
@@ -34,13 +30,8 @@ from cogex_mcp.services.pagination import get_pagination
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool(
-    name="cogex_query_cell_line",
-    annotations=READONLY_ANNOTATIONS,
-)
 async def cogex_query_cell_line(
     params: CellLineQuery,
-    ctx: Context,
 ) -> str:
     """
     Query cell line data from CCLE and DepMap.
@@ -125,17 +116,15 @@ async def cogex_query_cell_line(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on mode
         if params.mode == CellLineQueryMode.GET_PROPERTIES:
-            result = await _get_cell_line_properties(params, ctx)
+            result = await _get_cell_line_properties(params)
         elif params.mode == CellLineQueryMode.GET_MUTATED_GENES:
-            result = await _get_mutated_genes(params, ctx)
+            result = await _get_mutated_genes(params)
         elif params.mode == CellLineQueryMode.GET_CELL_LINES_WITH_MUTATION:
-            result = await _get_cell_lines_with_mutation(params, ctx)
+            result = await _get_cell_lines_with_mutation(params)
         elif params.mode == CellLineQueryMode.CHECK_MUTATION:
-            result = await _check_mutation(params, ctx)
+            result = await _check_mutation(params)
         else:
             return f"Error: Unknown query mode '{params.mode}'"
 
@@ -147,7 +136,6 @@ async def cogex_query_cell_line(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Query complete")
         return response
 
     except EntityResolutionError as e:
@@ -166,7 +154,6 @@ async def cogex_query_cell_line(
 
 async def _get_cell_line_properties(
     params: CellLineQuery,
-    ctx: Context,
 ) -> dict[str, Any]:
     """
     Mode: get_properties
@@ -174,8 +161,6 @@ async def _get_cell_line_properties(
     """
     if not params.cell_line:
         raise ValueError("cell_line parameter required for get_properties mode")
-
-    await ctx.report_progress(0.2, f"Fetching properties for {params.cell_line}...")
 
     # For now, accept cell line name directly
     # TODO: Implement cell line resolution
@@ -194,7 +179,6 @@ async def _get_cell_line_properties(
 
     # Fetch requested features
     if params.include_mutations:
-        await ctx.report_progress(0.3, "Fetching mutations...")
         mutation_data = await adapter.query(
             "get_mutations_for_cell_line",
             cell_line=cell_line_name,
@@ -203,7 +187,6 @@ async def _get_cell_line_properties(
         result["mutations"] = _parse_mutations(mutation_data)
 
     if params.include_copy_number:
-        await ctx.report_progress(0.5, "Fetching copy number alterations...")
         cna_data = await adapter.query(
             "get_copy_number_for_cell_line",
             cell_line=cell_line_name,
@@ -212,7 +195,6 @@ async def _get_cell_line_properties(
         result["copy_number_alterations"] = _parse_copy_number(cna_data)
 
     if params.include_dependencies:
-        await ctx.report_progress(0.7, "Fetching gene dependencies...")
         dep_data = await adapter.query(
             "get_dependencies_for_cell_line",
             cell_line=cell_line_name,
@@ -221,7 +203,6 @@ async def _get_cell_line_properties(
         result["dependencies"] = _parse_dependencies(dep_data)
 
     if params.include_expression:
-        await ctx.report_progress(0.85, "Fetching expression data...")
         expr_data = await adapter.query(
             "get_expression_for_cell_line",
             cell_line=cell_line_name,
@@ -234,7 +215,6 @@ async def _get_cell_line_properties(
 
 async def _get_mutated_genes(
     params: CellLineQuery,
-    ctx: Context,
 ) -> dict[str, Any]:
     """
     Mode: get_mutated_genes
@@ -242,8 +222,6 @@ async def _get_mutated_genes(
     """
     if not params.cell_line:
         raise ValueError("cell_line parameter required for get_mutated_genes mode")
-
-    await ctx.report_progress(0.3, f"Fetching mutated genes for {params.cell_line}...")
 
     cell_line_name = params.cell_line
 
@@ -255,8 +233,6 @@ async def _get_mutated_genes(
         offset=params.offset,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
 
     # Parse genes from mutations
     genes = _parse_gene_list_from_mutations(mutation_data)
@@ -283,7 +259,6 @@ async def _get_mutated_genes(
 
 async def _get_cell_lines_with_mutation(
     params: CellLineQuery,
-    ctx: Context,
 ) -> dict[str, Any]:
     """
     Mode: get_cell_lines_with_mutation
@@ -292,13 +267,9 @@ async def _get_cell_lines_with_mutation(
     if not params.gene:
         raise ValueError("gene parameter required for get_cell_lines_with_mutation mode")
 
-    await ctx.report_progress(0.2, "Resolving gene identifier...")
-
     # Resolve gene identifier
     resolver = get_resolver()
     gene = await resolver.resolve_gene(params.gene)
-
-    await ctx.report_progress(0.3, f"Fetching cell lines with {gene.name} mutations...")
 
     adapter = await get_adapter()
     cell_line_data = await adapter.query(
@@ -308,8 +279,6 @@ async def _get_cell_lines_with_mutation(
         offset=params.offset,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
 
     # Parse cell lines
     cell_lines = _parse_cell_line_list(cell_line_data)
@@ -332,7 +301,6 @@ async def _get_cell_lines_with_mutation(
 
 async def _check_mutation(
     params: CellLineQuery,
-    ctx: Context,
 ) -> dict[str, Any]:
     """
     Mode: check_mutation
@@ -343,13 +311,9 @@ async def _check_mutation(
     if not params.gene:
         raise ValueError("gene parameter required for check_mutation mode")
 
-    await ctx.report_progress(0.2, "Resolving gene identifier...")
-
     # Resolve gene identifier
     resolver = get_resolver()
     gene = await resolver.resolve_gene(params.gene)
-
-    await ctx.report_progress(0.4, f"Checking if {gene.name} is mutated in {params.cell_line}...")
 
     adapter = await get_adapter()
     check_data = await adapter.query(

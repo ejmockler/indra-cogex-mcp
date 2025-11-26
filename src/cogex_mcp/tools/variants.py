@@ -17,37 +17,26 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from mcp.server.fastmcp import Context
-
 if TYPE_CHECKING:
-    from cogex_mcp.schemas_tool10 import PhenotypeNode, VariantNode
+    from cogex_mcp.schemas import PhenotypeNode, VariantNode
 
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
-    READONLY_ANNOTATIONS,
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import (
     VariantQuery,
     VariantQueryMode,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_query_variants",
-    annotations=READONLY_ANNOTATIONS,
-)
 async def cogex_query_variants(
-    params: VariantQuery,
-    ctx: Context,
-) -> str:
+    params: VariantQuery) -> str:
     """
     Query genetic variants from GWAS Catalog and DisGeNet.
 
@@ -147,21 +136,19 @@ async def cogex_query_variants(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on mode
         if params.mode == VariantQueryMode.GET_FOR_GENE:
-            result = await _get_variants_for_gene(params, ctx)
+            result = await _get_variants_for_gene(params)
         elif params.mode == VariantQueryMode.GET_FOR_DISEASE:
-            result = await _get_variants_for_disease(params, ctx)
+            result = await _get_variants_for_disease(params)
         elif params.mode == VariantQueryMode.GET_FOR_PHENOTYPE:
-            result = await _get_variants_for_phenotype(params, ctx)
+            result = await _get_variants_for_phenotype(params)
         elif params.mode == VariantQueryMode.VARIANT_TO_GENES:
-            result = await _variant_to_genes(params, ctx)
+            result = await _variant_to_genes(params)
         elif params.mode == VariantQueryMode.VARIANT_TO_PHENOTYPES:
-            result = await _variant_to_phenotypes(params, ctx)
+            result = await _variant_to_phenotypes(params)
         elif params.mode == VariantQueryMode.CHECK_ASSOCIATION:
-            result = await _check_association(params, ctx)
+            result = await _check_association(params)
         else:
             return f"Error: Unknown query mode '{params.mode}'"
 
@@ -173,7 +160,6 @@ async def cogex_query_variants(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Query complete")
         return response
 
     except EntityResolutionError as e:
@@ -184,31 +170,21 @@ async def cogex_query_variants(
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Mode Implementations
 # ============================================================================
 
-
 async def _get_variants_for_gene(
-    params: VariantQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: VariantQuery) -> dict[str, Any]:
     """
     Mode: get_for_gene
     Get variants in or near a specific gene.
     """
     if not params.gene:
         raise ValueError("gene parameter required for get_for_gene mode")
-
-    await ctx.report_progress(0.2, "Resolving gene identifier...")
-
     # Resolve gene identifier
     resolver = get_resolver()
     gene = await resolver.resolve_gene(params.gene)
-
-    await ctx.report_progress(0.3, f"Fetching variants for {gene.name}...")
-
     adapter = await get_adapter()
     variant_data = await adapter.query(
         "get_variants_for_gene",
@@ -219,9 +195,6 @@ async def _get_variants_for_gene(
         offset=params.offset,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse variants and apply p-value filtering
     variants = _parse_variant_list(variant_data, params)
 
@@ -239,26 +212,17 @@ async def _get_variants_for_gene(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _get_variants_for_disease(
-    params: VariantQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: VariantQuery) -> dict[str, Any]:
     """
     Mode: get_for_disease
     Get variants associated with a disease.
     """
     if not params.disease:
         raise ValueError("disease parameter required for get_for_disease mode")
-
-    await ctx.report_progress(0.2, "Resolving disease identifier...")
-
     # Resolve disease identifier
     resolver = get_resolver()
     disease = await resolver.resolve_disease(params.disease)
-
-    await ctx.report_progress(0.3, f"Fetching variants for {disease.name}...")
-
     adapter = await get_adapter()
     variant_data = await adapter.query(
         "get_variants_for_disease",
@@ -269,9 +233,6 @@ async def _get_variants_for_disease(
         offset=params.offset,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     variants = _parse_variant_list(variant_data, params)
 
     pagination_service = get_pagination()
@@ -287,25 +248,16 @@ async def _get_variants_for_disease(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _get_variants_for_phenotype(
-    params: VariantQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: VariantQuery) -> dict[str, Any]:
     """
     Mode: get_for_phenotype
     Get GWAS hits for a phenotype.
     """
     if not params.phenotype:
         raise ValueError("phenotype parameter required for get_for_phenotype mode")
-
-    await ctx.report_progress(0.2, "Resolving phenotype identifier...")
-
     # Resolve phenotype identifier
     phenotype_id = params.phenotype if isinstance(params.phenotype, str) else params.phenotype[1]
-
-    await ctx.report_progress(0.3, "Fetching variants for phenotype...")
-
     adapter = await get_adapter()
     variant_data = await adapter.query(
         "get_variants_for_phenotype",
@@ -316,9 +268,6 @@ async def _get_variants_for_phenotype(
         offset=params.offset,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     variants = _parse_variant_list(variant_data, params)
 
     pagination_service = get_pagination()
@@ -334,20 +283,14 @@ async def _get_variants_for_phenotype(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _variant_to_genes(
-    params: VariantQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: VariantQuery) -> dict[str, Any]:
     """
     Mode: variant_to_genes
     Find nearby genes for a variant.
     """
     if not params.variant:
         raise ValueError("variant parameter required for variant_to_genes mode")
-
-    await ctx.report_progress(0.3, f"Querying genes near {params.variant}...")
-
     adapter = await get_adapter()
     gene_data = await adapter.query(
         "get_genes_for_variant",
@@ -356,9 +299,6 @@ async def _variant_to_genes(
         offset=params.offset,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse genes
     genes = _parse_gene_list(gene_data)
 
@@ -376,20 +316,14 @@ async def _variant_to_genes(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _variant_to_phenotypes(
-    params: VariantQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: VariantQuery) -> dict[str, Any]:
     """
     Mode: variant_to_phenotypes
     Find associated phenotypes for a variant.
     """
     if not params.variant:
         raise ValueError("variant parameter required for variant_to_phenotypes mode")
-
-    await ctx.report_progress(0.3, f"Querying phenotypes for {params.variant}...")
-
     adapter = await get_adapter()
     phenotype_data = await adapter.query(
         "get_phenotypes_for_variant",
@@ -399,9 +333,6 @@ async def _variant_to_phenotypes(
         offset=params.offset,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse phenotypes
     phenotypes = _parse_phenotype_list(phenotype_data)
 
@@ -419,11 +350,8 @@ async def _variant_to_phenotypes(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _check_association(
-    params: VariantQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: VariantQuery) -> dict[str, Any]:
     """
     Mode: check_association
     Check if variant is associated with disease.
@@ -432,15 +360,9 @@ async def _check_association(
         raise ValueError("variant parameter required for check_association mode")
     if not params.disease:
         raise ValueError("disease parameter required for check_association mode")
-
-    await ctx.report_progress(0.2, "Resolving disease identifier...")
-
     # Resolve disease identifier
     resolver = get_resolver()
     disease = await resolver.resolve_disease(params.disease)
-
-    await ctx.report_progress(0.4, f"Checking association for {params.variant}...")
-
     adapter = await get_adapter()
     assoc_data = await adapter.query(
         "is_variant_associated",
@@ -449,9 +371,6 @@ async def _check_association(
         max_p_value=params.max_p_value,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.8, "Processing results...")
-
     # Extract association information
     is_associated = assoc_data.get("is_associated", False)
     association_strength = assoc_data.get("p_value", None)
@@ -468,16 +387,14 @@ async def _check_association(
         "disease": disease.model_dump(),
     }
 
-
 # ============================================================================
 # Data Parsing Helpers
 # ============================================================================
 
-
 def _parse_variant_node(data: dict[str, Any]) -> VariantNode:
     """Parse single variant from backend response."""
     # Import locally to avoid circular dependency
-    from cogex_mcp.schemas_tool10 import VariantNode
+    from cogex_mcp.schemas import VariantNode
 
     return VariantNode(
         rsid=data.get("rsid", data.get("variant_id", "unknown")),
@@ -491,7 +408,6 @@ def _parse_variant_node(data: dict[str, Any]) -> VariantNode:
         study=data.get("study", data.get("study_id", "Unknown study")),
         source=data.get("source", "unknown"),
     )
-
 
 def _parse_variant_list(data: dict[str, Any], params: VariantQuery) -> list[VariantNode]:
     """Parse variant list from backend response with p-value filtering."""
@@ -513,10 +429,9 @@ def _parse_variant_list(data: dict[str, Any], params: VariantQuery) -> list[Vari
 
     return variants
 
-
 def _parse_phenotype_node(data: dict[str, Any]) -> PhenotypeNode:
     """Parse single phenotype from backend response."""
-    from cogex_mcp.schemas_tool10 import PhenotypeNode
+    from cogex_mcp.schemas import PhenotypeNode
 
     return PhenotypeNode(
         name=data.get("phenotype", data.get("name", "Unknown")),
@@ -525,7 +440,6 @@ def _parse_phenotype_node(data: dict[str, Any]) -> PhenotypeNode:
         identifier=data.get("identifier", data.get("phenotype_id", "unknown")),
         description=data.get("description"),
     )
-
 
 def _parse_phenotype_list(data: dict[str, Any]) -> list[PhenotypeNode]:
     """Parse phenotype list from backend response."""
@@ -537,7 +451,6 @@ def _parse_phenotype_list(data: dict[str, Any]) -> list[PhenotypeNode]:
         phenotypes.append(_parse_phenotype_node(record))
 
     return phenotypes
-
 
 def _parse_gene_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse gene list from backend response."""
@@ -558,6 +471,5 @@ def _parse_gene_list(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     return genes
-
 
 logger.info("✓ Tool 10 (cogex_query_variants) registered")

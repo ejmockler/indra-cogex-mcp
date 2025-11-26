@@ -10,12 +10,9 @@ Modes:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
-    READONLY_ANNOTATIONS,
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import (
@@ -23,21 +20,13 @@ from cogex_mcp.schemas import (
     RelationshipQuery,
     RelationshipType,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_check_relationship",
-    annotations=READONLY_ANNOTATIONS,
-)
 async def cogex_check_relationship(
-    params: RelationshipQuery,
-    ctx: Context,
-) -> str:
+    params: RelationshipQuery) -> str:
     """
     Check existence of specific relationships between biological entities.
 
@@ -147,29 +136,27 @@ async def cogex_check_relationship(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on relationship type
         if params.relationship_type == RelationshipType.GENE_IN_PATHWAY:
-            result = await _check_gene_in_pathway(params, ctx)
+            result = await _check_gene_in_pathway(params)
         elif params.relationship_type == RelationshipType.DRUG_TARGET:
-            result = await _check_drug_target(params, ctx)
+            result = await _check_drug_target(params)
         elif params.relationship_type == RelationshipType.DRUG_INDICATION:
-            result = await _check_drug_indication(params, ctx)
+            result = await _check_drug_indication(params)
         elif params.relationship_type == RelationshipType.DRUG_SIDE_EFFECT:
-            result = await _check_drug_side_effect(params, ctx)
+            result = await _check_drug_side_effect(params)
         elif params.relationship_type == RelationshipType.GENE_DISEASE:
-            result = await _check_gene_disease(params, ctx)
+            result = await _check_gene_disease(params)
         elif params.relationship_type == RelationshipType.DISEASE_PHENOTYPE:
-            result = await _check_disease_phenotype(params, ctx)
+            result = await _check_disease_phenotype(params)
         elif params.relationship_type == RelationshipType.GENE_PHENOTYPE:
-            result = await _check_gene_phenotype(params, ctx)
+            result = await _check_gene_phenotype(params)
         elif params.relationship_type == RelationshipType.VARIANT_ASSOCIATION:
-            result = await _check_variant_association(params, ctx)
+            result = await _check_variant_association(params)
         elif params.relationship_type == RelationshipType.CELL_LINE_MUTATION:
-            result = await _check_cell_line_mutation(params, ctx)
+            result = await _check_cell_line_mutation(params)
         elif params.relationship_type == RelationshipType.CELL_MARKER:
-            result = await _check_cell_marker(params, ctx)
+            result = await _check_cell_marker(params)
         else:
             return f"Error: Unknown relationship type '{params.relationship_type}'"
 
@@ -181,7 +168,6 @@ async def cogex_check_relationship(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Check complete")
         return response
 
     except EntityResolutionError as e:
@@ -192,22 +178,16 @@ async def cogex_check_relationship(
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Relationship Check Implementations
 # ============================================================================
 
-
 async def _check_gene_in_pathway(
-    params: RelationshipQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: RelationshipQuery) -> dict[str, Any]:
     """
     Check if gene is in pathway.
     entity1: gene, entity2: pathway
     """
-    await ctx.report_progress(0.2, "Resolving gene identifier...")
-
     # Resolve gene
     resolver = get_resolver()
     gene = await resolver.resolve_gene(params.entity1)
@@ -217,9 +197,6 @@ async def _check_gene_in_pathway(
         pathway_id = f"{params.entity2[0]}:{params.entity2[1]}"
     else:
         pathway_id = params.entity2
-
-    await ctx.report_progress(0.5, f"Checking if {gene.name} is in pathway...")
-
     adapter = await get_adapter()
     check_data = await adapter.query(
         "is_gene_in_pathway",
@@ -227,9 +204,6 @@ async def _check_gene_in_pathway(
         pathway_id=pathway_id,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.8, "Processing result...")
-
     exists = check_data.get("result", False) if check_data.get("success") else False
 
     metadata = None
@@ -248,17 +222,12 @@ async def _check_gene_in_pathway(
         "metadata": metadata.model_dump() if metadata else None,
     }
 
-
 async def _check_drug_target(
-    params: RelationshipQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: RelationshipQuery) -> dict[str, Any]:
     """
     Check if drug targets gene/protein.
     entity1: drug, entity2: gene
     """
-    await ctx.report_progress(0.2, "Resolving identifiers...")
-
     resolver = get_resolver()
 
     # Resolve drug
@@ -266,9 +235,6 @@ async def _check_drug_target(
 
     # Resolve target gene
     target = await resolver.resolve_gene(params.entity2)
-
-    await ctx.report_progress(0.5, f"Checking if {drug.name} targets {target.name}...")
-
     adapter = await get_adapter()
     check_data = await adapter.query(
         "is_drug_target",
@@ -276,9 +242,6 @@ async def _check_drug_target(
         target_id=target.curie,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.8, "Processing result...")
-
     exists = check_data.get("result", False) if check_data.get("success") else False
 
     metadata = None
@@ -298,17 +261,12 @@ async def _check_drug_target(
         "metadata": metadata.model_dump() if metadata else None,
     }
 
-
 async def _check_drug_indication(
-    params: RelationshipQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: RelationshipQuery) -> dict[str, Any]:
     """
     Check if drug is indicated for disease.
     entity1: drug, entity2: disease
     """
-    await ctx.report_progress(0.2, "Resolving identifiers...")
-
     resolver = get_resolver()
 
     # Resolve drug
@@ -316,9 +274,6 @@ async def _check_drug_indication(
 
     # Resolve disease
     disease = await resolver.resolve_disease(params.entity2)
-
-    await ctx.report_progress(0.5, f"Checking if {drug.name} is indicated for {disease.name}...")
-
     adapter = await get_adapter()
     check_data = await adapter.query(
         "drug_has_indication",
@@ -326,9 +281,6 @@ async def _check_drug_indication(
         disease_id=disease.curie,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.8, "Processing result...")
-
     exists = check_data.get("result", False) if check_data.get("success") else False
 
     metadata = None
@@ -347,17 +299,12 @@ async def _check_drug_indication(
         "metadata": metadata.model_dump() if metadata else None,
     }
 
-
 async def _check_drug_side_effect(
-    params: RelationshipQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: RelationshipQuery) -> dict[str, Any]:
     """
     Check if drug causes side effect.
     entity1: drug, entity2: side effect
     """
-    await ctx.report_progress(0.2, "Resolving drug identifier...")
-
     resolver = get_resolver()
 
     # Resolve drug
@@ -365,9 +312,6 @@ async def _check_drug_side_effect(
 
     # Parse side effect
     side_effect_id = params.entity2 if isinstance(params.entity2, str) else params.entity2[1]
-
-    await ctx.report_progress(0.5, f"Checking if {drug.name} causes {side_effect_id}...")
-
     adapter = await get_adapter()
     check_data = await adapter.query(
         "is_side_effect_for_drug",
@@ -375,9 +319,6 @@ async def _check_drug_side_effect(
         side_effect_id=side_effect_id,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.8, "Processing result...")
-
     exists = check_data.get("result", False) if check_data.get("success") else False
 
     metadata = None
@@ -396,17 +337,12 @@ async def _check_drug_side_effect(
         "metadata": metadata.model_dump() if metadata else None,
     }
 
-
 async def _check_gene_disease(
-    params: RelationshipQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: RelationshipQuery) -> dict[str, Any]:
     """
     Check if gene is associated with disease.
     entity1: gene, entity2: disease
     """
-    await ctx.report_progress(0.2, "Resolving identifiers...")
-
     resolver = get_resolver()
 
     # Resolve gene
@@ -414,9 +350,6 @@ async def _check_gene_disease(
 
     # Resolve disease
     disease = await resolver.resolve_disease(params.entity2)
-
-    await ctx.report_progress(0.5, f"Checking if {gene.name} is associated with {disease.name}...")
-
     adapter = await get_adapter()
     check_data = await adapter.query(
         "is_gene_associated_with_disease",
@@ -424,9 +357,6 @@ async def _check_gene_disease(
         disease_id=disease.curie,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.8, "Processing result...")
-
     exists = check_data.get("result", False) if check_data.get("success") else False
 
     metadata = None
@@ -446,17 +376,12 @@ async def _check_gene_disease(
         "metadata": metadata.model_dump() if metadata else None,
     }
 
-
 async def _check_disease_phenotype(
-    params: RelationshipQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: RelationshipQuery) -> dict[str, Any]:
     """
     Check if disease has phenotype.
     entity1: disease, entity2: phenotype
     """
-    await ctx.report_progress(0.2, "Resolving disease identifier...")
-
     resolver = get_resolver()
 
     # Resolve disease
@@ -464,9 +389,6 @@ async def _check_disease_phenotype(
 
     # Parse phenotype identifier
     phenotype_id = params.entity2 if isinstance(params.entity2, str) else params.entity2[1]
-
-    await ctx.report_progress(0.5, f"Checking if {disease.name} has phenotype {phenotype_id}...")
-
     adapter = await get_adapter()
     check_data = await adapter.query(
         "has_phenotype",
@@ -474,9 +396,6 @@ async def _check_disease_phenotype(
         phenotype_id=phenotype_id,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.8, "Processing result...")
-
     exists = check_data.get("result", False) if check_data.get("success") else False
 
     metadata = None
@@ -495,17 +414,12 @@ async def _check_disease_phenotype(
         "metadata": metadata.model_dump() if metadata else None,
     }
 
-
 async def _check_gene_phenotype(
-    params: RelationshipQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: RelationshipQuery) -> dict[str, Any]:
     """
     Check if gene is associated with phenotype.
     entity1: gene, entity2: phenotype
     """
-    await ctx.report_progress(0.2, "Resolving gene identifier...")
-
     resolver = get_resolver()
 
     # Resolve gene
@@ -513,9 +427,6 @@ async def _check_gene_phenotype(
 
     # Parse phenotype identifier
     phenotype_id = params.entity2 if isinstance(params.entity2, str) else params.entity2[1]
-
-    await ctx.report_progress(0.5, f"Checking if {gene.name} is associated with {phenotype_id}...")
-
     adapter = await get_adapter()
     check_data = await adapter.query(
         "is_gene_associated_with_phenotype",
@@ -523,9 +434,6 @@ async def _check_gene_phenotype(
         phenotype_id=phenotype_id,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.8, "Processing result...")
-
     exists = check_data.get("result", False) if check_data.get("success") else False
 
     metadata = None
@@ -544,17 +452,12 @@ async def _check_gene_phenotype(
         "metadata": metadata.model_dump() if metadata else None,
     }
 
-
 async def _check_variant_association(
-    params: RelationshipQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: RelationshipQuery) -> dict[str, Any]:
     """
     Check if variant is associated with trait/disease.
     entity1: variant (rsID), entity2: trait/disease
     """
-    await ctx.report_progress(0.2, "Validating variant...")
-
     # Parse variant rsID
     variant_id = params.entity1 if isinstance(params.entity1, str) else params.entity1[1]
     if not variant_id.startswith("rs"):
@@ -562,9 +465,6 @@ async def _check_variant_association(
 
     # Parse trait/disease
     trait_id = params.entity2 if isinstance(params.entity2, str) else params.entity2[1]
-
-    await ctx.report_progress(0.5, f"Checking if {variant_id} is associated with {trait_id}...")
-
     adapter = await get_adapter()
     check_data = await adapter.query(
         "is_variant_associated",
@@ -572,9 +472,6 @@ async def _check_variant_association(
         trait_id=trait_id,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.8, "Processing result...")
-
     exists = check_data.get("result", False) if check_data.get("success") else False
 
     metadata = None
@@ -594,17 +491,12 @@ async def _check_variant_association(
         "metadata": metadata.model_dump() if metadata else None,
     }
 
-
 async def _check_cell_line_mutation(
-    params: RelationshipQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: RelationshipQuery) -> dict[str, Any]:
     """
     Check if cell line has mutation in gene.
     entity1: cell line, entity2: gene
     """
-    await ctx.report_progress(0.2, "Resolving gene identifier...")
-
     resolver = get_resolver()
 
     # Parse cell line name
@@ -612,9 +504,6 @@ async def _check_cell_line_mutation(
 
     # Resolve gene
     gene = await resolver.resolve_gene(params.entity2)
-
-    await ctx.report_progress(0.5, f"Checking if {cell_line} has mutation in {gene.name}...")
-
     adapter = await get_adapter()
     check_data = await adapter.query(
         "is_mutated_in_cell_line",
@@ -622,9 +511,6 @@ async def _check_cell_line_mutation(
         gene_id=gene.curie,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.8, "Processing result...")
-
     exists = check_data.get("result", False) if check_data.get("success") else False
 
     metadata = None
@@ -643,17 +529,12 @@ async def _check_cell_line_mutation(
         "metadata": metadata.model_dump() if metadata else None,
     }
 
-
 async def _check_cell_marker(
-    params: RelationshipQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: RelationshipQuery) -> dict[str, Any]:
     """
     Check if gene is a marker for cell type.
     entity1: gene, entity2: cell type
     """
-    await ctx.report_progress(0.2, "Resolving gene identifier...")
-
     resolver = get_resolver()
 
     # Resolve gene
@@ -661,9 +542,6 @@ async def _check_cell_marker(
 
     # Parse cell type
     cell_type = params.entity2 if isinstance(params.entity2, str) else params.entity2[1]
-
-    await ctx.report_progress(0.5, f"Checking if {gene.name} is a marker for {cell_type}...")
-
     adapter = await get_adapter()
     check_data = await adapter.query(
         "is_cell_marker",
@@ -671,9 +549,6 @@ async def _check_cell_marker(
         cell_type=cell_type,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.8, "Processing result...")
-
     exists = check_data.get("result", False) if check_data.get("success") else False
 
     metadata = None
@@ -692,6 +567,5 @@ async def _check_cell_marker(
         "exists": exists,
         "metadata": metadata.model_dump() if metadata else None,
     }
-
 
 logger.info("✓ Tool 12 (cogex_check_relationship) registered")

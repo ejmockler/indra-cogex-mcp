@@ -11,34 +11,23 @@ Modes:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
-    READONLY_ANNOTATIONS,
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import (
     DrugEffectQuery,
     DrugQueryMode,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_query_drug_or_effect",
-    annotations=READONLY_ANNOTATIONS,
-)
 async def cogex_query_drug_or_effect(
-    params: DrugEffectQuery,
-    ctx: Context,
-) -> str:
+    params: DrugEffectQuery) -> str:
     """
     Query drugs and their effects bidirectionally.
 
@@ -102,13 +91,11 @@ async def cogex_query_drug_or_effect(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on mode
         if params.mode == DrugQueryMode.DRUG_TO_PROFILE:
-            result = await _drug_to_profile(params, ctx)
+            result = await _drug_to_profile(params)
         elif params.mode == DrugQueryMode.SIDE_EFFECT_TO_DRUGS:
-            result = await _side_effect_to_drugs(params, ctx)
+            result = await _side_effect_to_drugs(params)
         else:
             return f"Error: Unknown query mode '{params.mode}'"
 
@@ -120,7 +107,6 @@ async def cogex_query_drug_or_effect(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Query complete")
         return response
 
     except EntityResolutionError as e:
@@ -131,31 +117,21 @@ async def cogex_query_drug_or_effect(
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Mode Implementations
 # ============================================================================
 
-
 async def _drug_to_profile(
-    params: DrugEffectQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: DrugEffectQuery) -> dict[str, Any]:
     """
     Mode: drug_to_profile
     Get comprehensive drug profile with all requested features.
     """
     if not params.drug:
         raise ValueError("drug parameter required for drug_to_profile mode")
-
-    await ctx.report_progress(0.2, "Resolving drug identifier...")
-
     # Resolve drug identifier
     resolver = get_resolver()
     drug = await resolver.resolve_drug(params.drug)
-
-    await ctx.report_progress(0.3, f"Fetching profile for {drug.name}...")
-
     adapter = await get_adapter()
     result = {
         "drug": drug.model_dump(),
@@ -163,7 +139,6 @@ async def _drug_to_profile(
 
     # Fetch requested features
     if params.include_targets:
-        await ctx.report_progress(0.4, "Fetching drug targets...")
         target_data = await adapter.query(
             "get_targets_for_drug",
             drug_id=drug.curie,
@@ -172,7 +147,6 @@ async def _drug_to_profile(
         result["targets"] = _parse_targets(target_data)
 
     if params.include_indications:
-        await ctx.report_progress(0.5, "Fetching disease indications...")
         indication_data = await adapter.query(
             "get_indications_for_drug",
             drug_id=drug.curie,
@@ -181,7 +155,6 @@ async def _drug_to_profile(
         result["indications"] = _parse_indications(indication_data)
 
     if params.include_side_effects:
-        await ctx.report_progress(0.6, "Fetching side effects...")
         side_effect_data = await adapter.query(
             "get_side_effects_for_drug",
             drug_id=drug.curie,
@@ -190,7 +163,6 @@ async def _drug_to_profile(
         result["side_effects"] = _parse_side_effects(side_effect_data)
 
     if params.include_trials:
-        await ctx.report_progress(0.7, "Fetching clinical trials...")
         trial_data = await adapter.query(
             "get_trials_for_drug",
             drug_id=drug.curie,
@@ -199,7 +171,6 @@ async def _drug_to_profile(
         result["trials"] = _parse_trials(trial_data)
 
     if params.include_cell_lines:
-        await ctx.report_progress(0.85, "Fetching cell line sensitivities...")
         cell_line_data = await adapter.query(
             "get_sensitive_cell_lines_for_drug",
             drug_id=drug.curie,
@@ -209,20 +180,14 @@ async def _drug_to_profile(
 
     return result
 
-
 async def _side_effect_to_drugs(
-    params: DrugEffectQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: DrugEffectQuery) -> dict[str, Any]:
     """
     Mode: side_effect_to_drugs
     Find drugs associated with a specific side effect.
     """
     if not params.side_effect:
         raise ValueError("side_effect parameter required for side_effect_to_drugs mode")
-
-    await ctx.report_progress(0.3, "Querying drugs for side effect...")
-
     # Parse side effect identifier
     # For now, accept side effect name directly
     # TODO: Implement side effect resolution
@@ -238,9 +203,6 @@ async def _side_effect_to_drugs(
         offset=params.offset,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse drugs
     drugs = _parse_drug_list(drug_data)
 
@@ -258,11 +220,9 @@ async def _side_effect_to_drugs(
         "pagination": pagination.model_dump(),
     }
 
-
 # ============================================================================
 # Data Parsing Helpers
 # ============================================================================
-
 
 def _parse_targets(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse drug targets from backend response."""
@@ -286,7 +246,6 @@ def _parse_targets(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     return targets
 
-
 def _parse_indications(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse drug indications from backend response."""
     if not data.get("success") or not data.get("records"):
@@ -309,7 +268,6 @@ def _parse_indications(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     return indications
 
-
 def _parse_side_effects(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse side effects from backend response."""
     if not data.get("success") or not data.get("records"):
@@ -330,7 +288,6 @@ def _parse_side_effects(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     return side_effects
-
 
 def _parse_trials(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse clinical trials from backend response."""
@@ -354,7 +311,6 @@ def _parse_trials(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     return trials
 
-
 def _parse_cell_lines(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse cell line sensitivity data from backend response."""
     if not data.get("success") or not data.get("records"):
@@ -370,7 +326,6 @@ def _parse_cell_lines(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     return cell_lines
-
 
 def _parse_drug_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse drug list from backend response."""
@@ -391,6 +346,5 @@ def _parse_drug_list(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     return drugs
-
 
 logger.info("✓ Tool 4 (cogex_query_drug_or_effect) registered")

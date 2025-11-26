@@ -12,12 +12,9 @@ Modes:
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
-
 from cogex_mcp.clients.adapter import get_adapter
 from cogex_mcp.constants import (
     CHARACTER_LIMIT,
-    READONLY_ANNOTATIONS,
     STANDARD_QUERY_TIMEOUT,
 )
 from cogex_mcp.schemas import (
@@ -25,22 +22,14 @@ from cogex_mcp.schemas import (
     DiseasePhenotypeQuery,
     DiseaseQueryMode,
 )
-from cogex_mcp.server import mcp
 from cogex_mcp.services.entity_resolver import EntityResolutionError, get_resolver
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
 
 logger = logging.getLogger(__name__)
 
-
-@mcp.tool(
-    name="cogex_query_disease_or_phenotype",
-    annotations=READONLY_ANNOTATIONS,
-)
 async def cogex_query_disease_or_phenotype(
-    params: DiseasePhenotypeQuery,
-    ctx: Context,
-) -> str:
+    params: DiseasePhenotypeQuery) -> str:
     """
     Query diseases, phenotypes, and their mechanisms bidirectionally.
 
@@ -118,15 +107,13 @@ async def cogex_query_disease_or_phenotype(
         None (errors returned as formatted strings)
     """
     try:
-        await ctx.report_progress(0.1, "Validating parameters...")
-
         # Route to appropriate handler based on mode
         if params.mode == DiseaseQueryMode.DISEASE_TO_MECHANISMS:
-            result = await _disease_to_mechanisms(params, ctx)
+            result = await _disease_to_mechanisms(params)
         elif params.mode == DiseaseQueryMode.PHENOTYPE_TO_DISEASES:
-            result = await _phenotype_to_diseases(params, ctx)
+            result = await _phenotype_to_diseases(params)
         elif params.mode == DiseaseQueryMode.CHECK_PHENOTYPE:
-            result = await _check_phenotype(params, ctx)
+            result = await _check_phenotype(params)
         else:
             return f"Error: Unknown query mode '{params.mode}'"
 
@@ -138,7 +125,6 @@ async def cogex_query_disease_or_phenotype(
             max_chars=CHARACTER_LIMIT,
         )
 
-        await ctx.report_progress(1.0, "Query complete")
         return response
 
     except EntityResolutionError as e:
@@ -149,25 +135,18 @@ async def cogex_query_disease_or_phenotype(
         logger.error(f"Tool error: {e}", exc_info=True)
         return f"Error: Unexpected error occurred. {str(e)}"
 
-
 # ============================================================================
 # Mode Implementations
 # ============================================================================
 
-
 async def _disease_to_mechanisms(
-    params: DiseasePhenotypeQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: DiseasePhenotypeQuery) -> dict[str, Any]:
     """
     Mode: disease_to_mechanisms
     Get comprehensive disease profile with all molecular mechanisms.
     """
     if not params.disease:
         raise ValueError("disease parameter required for disease_to_mechanisms mode")
-
-    await ctx.report_progress(0.2, "Resolving disease identifier...")
-
     # Resolve disease identifier
     resolver = get_resolver()
     disease_ref = await resolver.resolve_disease(params.disease)
@@ -179,9 +158,6 @@ async def _disease_to_mechanisms(
         namespace=disease_ref.namespace,
         identifier=disease_ref.identifier,
     )
-
-    await ctx.report_progress(0.3, f"Fetching mechanisms for {disease.name}...")
-
     adapter = await get_adapter()
     result = {
         "disease": disease.model_dump(),
@@ -189,7 +165,6 @@ async def _disease_to_mechanisms(
 
     # Fetch requested features
     if params.include_genes:
-        await ctx.report_progress(0.4, "Fetching gene associations...")
         gene_data = await adapter.query(
             "get_genes_for_disease",
             disease_id=disease.curie,
@@ -198,7 +173,6 @@ async def _disease_to_mechanisms(
         result["genes"] = _parse_gene_associations(gene_data)
 
     if params.include_variants:
-        await ctx.report_progress(0.5, "Fetching genetic variants...")
         variant_data = await adapter.query(
             "get_variants_for_disease",
             disease_id=disease.curie,
@@ -207,7 +181,6 @@ async def _disease_to_mechanisms(
         result["variants"] = _parse_variant_associations(variant_data)
 
     if params.include_phenotypes:
-        await ctx.report_progress(0.6, "Fetching phenotypes...")
         phenotype_data = await adapter.query(
             "get_phenotypes_for_disease",
             disease_id=disease.curie,
@@ -216,7 +189,6 @@ async def _disease_to_mechanisms(
         result["phenotypes"] = _parse_phenotype_associations(phenotype_data)
 
     if params.include_drugs:
-        await ctx.report_progress(0.7, "Fetching drug therapies...")
         drug_data = await adapter.query(
             "get_drugs_for_indication",
             disease_id=disease.curie,
@@ -225,7 +197,6 @@ async def _disease_to_mechanisms(
         result["drugs"] = _parse_drug_therapies(drug_data)
 
     if params.include_trials:
-        await ctx.report_progress(0.8, "Fetching clinical trials...")
         trial_data = await adapter.query(
             "get_trials_for_disease",
             disease_id=disease.curie,
@@ -235,20 +206,14 @@ async def _disease_to_mechanisms(
 
     return result
 
-
 async def _phenotype_to_diseases(
-    params: DiseasePhenotypeQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: DiseasePhenotypeQuery) -> dict[str, Any]:
     """
     Mode: phenotype_to_diseases
     Find diseases associated with a specific phenotype.
     """
     if not params.phenotype:
         raise ValueError("phenotype parameter required for phenotype_to_diseases mode")
-
-    await ctx.report_progress(0.3, "Querying diseases for phenotype...")
-
     # Parse phenotype identifier
     phenotype_id = params.phenotype if isinstance(params.phenotype, str) else params.phenotype[1]
 
@@ -260,9 +225,6 @@ async def _phenotype_to_diseases(
         offset=params.offset,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse diseases
     diseases = _parse_disease_list(disease_data)
 
@@ -280,11 +242,8 @@ async def _phenotype_to_diseases(
         "pagination": pagination.model_dump(),
     }
 
-
 async def _check_phenotype(
-    params: DiseasePhenotypeQuery,
-    ctx: Context,
-) -> dict[str, Any]:
+    params: DiseasePhenotypeQuery) -> dict[str, Any]:
     """
     Mode: check_phenotype
     Boolean check: Does disease have specific phenotype?
@@ -293,9 +252,6 @@ async def _check_phenotype(
         raise ValueError("disease parameter required for check_phenotype mode")
     if not params.phenotype:
         raise ValueError("phenotype parameter required for check_phenotype mode")
-
-    await ctx.report_progress(0.3, "Checking disease-phenotype association...")
-
     # Resolve identifiers
     resolver = get_resolver()
     disease_ref = await resolver.resolve_disease(params.disease)
@@ -310,9 +266,6 @@ async def _check_phenotype(
         phenotype_id=phenotype_id,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
-
-    await ctx.report_progress(0.7, "Processing results...")
-
     # Parse result
     has_phenotype = check_data.get("result", False) if check_data.get("success") else False
 
@@ -332,11 +285,9 @@ async def _check_phenotype(
         },
     }
 
-
 # ============================================================================
 # Data Parsing Helpers
 # ============================================================================
-
 
 def _parse_gene_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse gene-disease associations from backend response."""
@@ -360,7 +311,6 @@ def _parse_gene_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     return associations
-
 
 def _parse_variant_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse variant-disease associations from backend response."""
@@ -386,7 +336,6 @@ def _parse_variant_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     return variants
 
-
 def _parse_phenotype_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse disease-phenotype associations from backend response."""
     if not data.get("success") or not data.get("records"):
@@ -408,7 +357,6 @@ def _parse_phenotype_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     return phenotypes
-
 
 def _parse_drug_therapies(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse drug therapy data from backend response."""
@@ -433,7 +381,6 @@ def _parse_drug_therapies(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     return drugs
 
-
 def _parse_clinical_trials(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse clinical trial data from backend response."""
     if not data.get("success") or not data.get("records"):
@@ -454,7 +401,6 @@ def _parse_clinical_trials(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     return trials
 
-
 def _parse_disease_list(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse disease list from backend response."""
     if not data.get("success") or not data.get("records"):
@@ -473,6 +419,5 @@ def _parse_disease_list(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     return diseases
-
 
 logger.info("✓ Tool 5 (cogex_query_disease_or_phenotype) registered")
