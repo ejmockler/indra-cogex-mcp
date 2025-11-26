@@ -291,10 +291,16 @@ async def _variant_to_genes(
     """
     if not params.variant:
         raise ValueError("variant parameter required for variant_to_genes mode")
+
+    # Normalize variant ID: add dbsnp: prefix if missing
+    variant_id = params.variant
+    if not variant_id.startswith("dbsnp:"):
+        variant_id = f"dbsnp:{variant_id}"
+
     adapter = await get_adapter()
     gene_data = await adapter.query(
         "get_genes_for_variant",
-        variant_id=params.variant,
+        variant_id=variant_id,
         limit=params.limit,
         offset=params.offset,
         timeout=STANDARD_QUERY_TIMEOUT,
@@ -324,10 +330,16 @@ async def _variant_to_phenotypes(
     """
     if not params.variant:
         raise ValueError("variant parameter required for variant_to_phenotypes mode")
+
+    # Normalize variant ID: add dbsnp: prefix if missing
+    variant_id = params.variant
+    if not variant_id.startswith("dbsnp:"):
+        variant_id = f"dbsnp:{variant_id}"
+
     adapter = await get_adapter()
     phenotype_data = await adapter.query(
         "get_phenotypes_for_variant",
-        variant_id=params.variant,
+        variant_id=variant_id,
         max_p_value=params.max_p_value,
         limit=params.limit,
         offset=params.offset,
@@ -360,13 +372,19 @@ async def _check_association(
         raise ValueError("variant parameter required for check_association mode")
     if not params.disease:
         raise ValueError("disease parameter required for check_association mode")
+
+    # Normalize variant ID: add dbsnp: prefix if missing
+    variant_id = params.variant
+    if not variant_id.startswith("dbsnp:"):
+        variant_id = f"dbsnp:{variant_id}"
+
     # Resolve disease identifier
     resolver = get_resolver()
     disease = await resolver.resolve_disease(params.disease)
     adapter = await get_adapter()
     assoc_data = await adapter.query(
         "is_variant_associated",
-        variant_id=params.variant,
+        variant_id=variant_id,
         disease_id=disease.curie,
         max_p_value=params.max_p_value,
         timeout=STANDARD_QUERY_TIMEOUT,
@@ -396,13 +414,24 @@ def _parse_variant_node(data: dict[str, Any]) -> VariantNode:
     # Import locally to avoid circular dependency
     from cogex_mcp.schemas import VariantNode
 
+    # Handle None values for numeric fields
+    position_val = data.get("position")
+    position = int(position_val) if position_val is not None else 0
+
+    p_value_val = data.get("p_value")
+    p_value = float(p_value_val) if p_value_val is not None else 1.0
+
+    # Handle None values for string fields - Pydantic doesn't accept None for str
+    ref_allele = data.get("ref_allele") or data.get("reference") or "?"
+    alt_allele = data.get("alt_allele") or data.get("alternate") or "?"
+
     return VariantNode(
         rsid=data.get("rsid", data.get("variant_id", "unknown")),
-        chromosome=str(data.get("chromosome", "unknown")),
-        position=int(data.get("position", 0)),
-        ref_allele=data.get("ref_allele", data.get("reference", "?")),
-        alt_allele=data.get("alt_allele", data.get("alternate", "?")),
-        p_value=float(data.get("p_value", 1.0)),
+        chromosome=str(data.get("chromosome", "unknown")) if data.get("chromosome") is not None else "unknown",
+        position=position,
+        ref_allele=ref_allele,
+        alt_allele=alt_allele,
+        p_value=p_value,
         odds_ratio=data.get("odds_ratio"),
         trait=data.get("trait", data.get("phenotype", "Unknown trait")),
         study=data.get("study", data.get("study_id", "Unknown study")),

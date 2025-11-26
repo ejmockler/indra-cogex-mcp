@@ -241,32 +241,10 @@ class EntityResolver:
             result = await adapter.query("get_drug_by_name", **query_params)
 
             if not result.get("success") or not result.get("records"):
-                # For now, return a basic DrugNode for unknown drugs
-                # TODO: Implement proper drug search with suggestions
-                logger.warning(f"Drug not found: {identifier}, returning basic node")
-                if isinstance(identifier, tuple):
-                    namespace, drug_id = identifier
-                    return DrugNode(
-                        name=drug_id,
-                        curie=f"{namespace}:{drug_id}",
-                        namespace=namespace,
-                        identifier=drug_id,
-                    )
-                elif ":" in identifier:
-                    namespace, drug_id = identifier.split(":", 1)
-                    return DrugNode(
-                        name=drug_id,
-                        curie=identifier,
-                        namespace=namespace,
-                        identifier=drug_id,
-                    )
-                else:
-                    return DrugNode(
-                        name=identifier,
-                        curie=f"chembl:{identifier}",
-                        namespace="chembl",
-                        identifier=identifier,
-                    )
+                raise EntityNotFoundError(
+                    entity=str(identifier),
+                    suggestions=[],
+                )
 
             records = result["records"]
 
@@ -318,38 +296,72 @@ class EntityResolver:
         Raises:
             EntityNotFoundError: If disease not found
         """
-        # Similar to resolve_drug
-        # TODO: Implement full disease resolution
+        adapter = await get_adapter()
+
+        # Handle different identifier formats
         if isinstance(identifier, tuple):
             namespace, disease_id = identifier
-            return EntityRef(
-                name=disease_id,
-                curie=f"{namespace}:{disease_id}",
-                namespace=namespace,
-                identifier=disease_id,
-            )
+            query_params = {"namespace": namespace, "disease_id": disease_id}
         elif ":" in identifier:
+            # CURIE format
             namespace, disease_id = identifier.split(":", 1)
-            return EntityRef(
-                name=disease_id,
-                curie=identifier,
-                namespace=namespace,
-                identifier=disease_id,
-            )
+            query_params = {"namespace": namespace, "disease_id": disease_id}
         else:
+            # Assume disease name
+            query_params = {"name": identifier}
+
+        try:
+            result = await adapter.query("get_disease_by_name", **query_params)
+
+            if not result.get("success") or not result.get("records"):
+                raise EntityNotFoundError(
+                    entity=str(identifier),
+                    suggestions=[],
+                )
+
+            records = result["records"]
+
+            # Check for ambiguous matches
+            if len(records) > 1:
+                matches = [
+                    {
+                        "name": r.get("name", "Unknown"),
+                        "curie": r.get("id", "unknown:unknown"),
+                    }
+                    for r in records
+                ]
+                raise AmbiguousIdentifierError(identifier=str(identifier), matches=matches)
+
+            # Convert to EntityRef
+            record = records[0]
+            disease_id = record.get("id", "unknown:unknown")
+
+            # Extract namespace from CURIE
+            if ":" in disease_id:
+                namespace, identifier_part = disease_id.split(":", 1)
+            else:
+                namespace = "unknown"
+                identifier_part = disease_id
+
             return EntityRef(
-                name=identifier,
-                curie=f"unknown:{identifier}",
-                namespace="unknown",
-                identifier=identifier,
+                name=record.get("name", str(identifier)),
+                curie=disease_id,
+                namespace=namespace,
+                identifier=identifier_part,
             )
+
+        except (EntityNotFoundError, AmbiguousIdentifierError):
+            raise
+        except Exception as e:
+            logger.error(f"Error resolving disease {identifier}: {e}")
+            raise EntityResolutionError(f"Failed to resolve disease: {e}")
 
     async def resolve_pathway(self, identifier: str | tuple[str, str]) -> EntityRef:
         """
         Resolve pathway identifier to EntityRef.
 
         Args:
-            identifier: Pathway name or CURIE
+            identifier: Pathway name, CURIE, or (namespace, id) tuple
 
         Returns:
             EntityRef for pathway
@@ -357,7 +369,7 @@ class EntityResolver:
         Raises:
             EntityNotFoundError: If pathway not found
         """
-        # TODO: Implement full pathway resolution
+        # Handle tuple format
         if isinstance(identifier, tuple):
             namespace, pathway_id = identifier
             return EntityRef(
@@ -366,7 +378,10 @@ class EntityResolver:
                 namespace=namespace,
                 identifier=pathway_id,
             )
-        elif ":" in identifier:
+
+        # Handle CURIE format
+        elif ":" in identifier and not " " in identifier:
+            # It's a CURIE like "reactome:R-HSA-109581"
             namespace, pathway_id = identifier.split(":", 1)
             return EntityRef(
                 name=pathway_id,
@@ -374,13 +389,57 @@ class EntityResolver:
                 namespace=namespace,
                 identifier=pathway_id,
             )
+
+        # Handle pathway name - need to search database
         else:
-            return EntityRef(
-                name=identifier,
-                curie=f"unknown:{identifier}",
-                namespace="unknown",
-                identifier=identifier,
-            )
+            # Search for pathway by name in database
+            adapter = await get_adapter()
+
+            try:
+                result = await adapter.query("search_pathway_by_name", name=identifier)
+
+                if not result.get("success") or not result.get("records"):
+                    raise EntityNotFoundError(
+                        entity=identifier,
+                        suggestions=[],
+                    )
+
+                records = result["records"]
+
+                # Check for ambiguous matches
+                if len(records) > 1:
+                    matches = [
+                        {
+                            "name": r.get("name", "Unknown"),
+                            "curie": r.get("pathway_id", "unknown:unknown"),
+                        }
+                        for r in records
+                    ]
+                    raise AmbiguousIdentifierError(identifier=identifier, matches=matches)
+
+                # Convert to EntityRef
+                record = records[0]
+                pathway_id = record.get("pathway_id", "unknown:unknown")
+
+                # Extract namespace from CURIE
+                if ":" in pathway_id:
+                    namespace, identifier_part = pathway_id.split(":", 1)
+                else:
+                    namespace = "unknown"
+                    identifier_part = pathway_id
+
+                return EntityRef(
+                    name=record.get("name", identifier),
+                    curie=pathway_id,
+                    namespace=namespace,
+                    identifier=identifier_part,
+                )
+
+            except (EntityNotFoundError, AmbiguousIdentifierError):
+                raise
+            except Exception as e:
+                logger.error(f"Error resolving pathway {identifier}: {e}")
+                raise EntityResolutionError(f"Failed to resolve pathway: {e}")
 
     async def resolve_ontology_term(self, identifier: str | tuple[str, str]) -> OntologyTerm:
         """

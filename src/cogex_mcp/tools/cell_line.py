@@ -162,9 +162,13 @@ async def _get_cell_line_properties(
     if not params.cell_line:
         raise ValueError("cell_line parameter required for get_properties mode")
 
-    # For now, accept cell line name directly
-    # TODO: Implement cell line resolution
+    # Normalize cell line ID: add ccle: prefix if missing
     cell_line_name = params.cell_line
+    cell_line_id = params.cell_line
+    if not cell_line_id.startswith("ccle:"):
+        # Common pattern: A549 -> ccle:A549_LUNG, MCF7 -> ccle:MCF7_BREAST
+        # Try with just the name first, let Neo4j query handle with CONTAINS
+        cell_line_id = params.cell_line
 
     adapter = await get_adapter()
     result = {

@@ -181,6 +181,14 @@ class Neo4jClient:
         if "max_statements" not in params:
             params["max_statements"] = 100
 
+        # Set default ontology term resolution parameters (for get_ontology_term)
+        if "term_id" not in params:
+            params["term_id"] = None
+        if "name" not in params:
+            params["name"] = None
+        if "namespace" not in params:
+            params["namespace"] = None
+
         # Handle check_relationship dispatcher
         if query_name == "check_relationship" and "relationship_type" in params:
             query_name, params = self._dispatch_relationship_check(params)
@@ -587,7 +595,7 @@ class Neo4jClient:
             # ========================================================================
             "get_drug_by_name": """
                 MATCH (drug:BioEntity)
-                WHERE (drug.name = $name OR $name IN drug.synonyms)
+                WHERE toLower(drug.name) CONTAINS toLower($name)
                   AND (
                     drug.id STARTS WITH 'chebi:' OR
                     drug.id STARTS WITH 'drugbank:' OR
@@ -597,13 +605,12 @@ class Neo4jClient:
                 RETURN
                   drug.name AS name,
                   drug.id AS id,
-                  drug.type AS type,
-                  drug.synonyms AS synonyms
+                  drug.type AS type
                 LIMIT 10
             """,
             "drug_to_profile": """
                 MATCH (drug:BioEntity)
-                WHERE (drug.name = $drug OR drug.id = $drug OR $drug IN drug.synonyms)
+                WHERE (drug.name = $drug OR drug.id = $drug)
                   AND (
                     drug.id STARTS WITH 'chebi:' OR
                     drug.id STARTS WITH 'drugbank:' OR
@@ -697,7 +704,7 @@ class Neo4jClient:
             # ========================================================================
             "get_disease_by_name": """
                 MATCH (disease:BioEntity)
-                WHERE (disease.name = $name OR $name IN disease.synonyms)
+                WHERE toLower(disease.name) CONTAINS toLower($name)
                   AND (
                     disease.id STARTS WITH 'mesh:' OR
                     disease.id STARTS WITH 'DOID:' OR
@@ -708,8 +715,7 @@ class Neo4jClient:
                 RETURN
                   disease.name AS name,
                   disease.id AS id,
-                  disease.type AS type,
-                  disease.synonyms AS synonyms
+                  disease.type AS type
                 LIMIT 10
             """,
             "disease_to_mechanisms": """
@@ -841,6 +847,25 @@ class Neo4jClient:
             # Tool 6: Pathway Queries
             # CORRECTED: Uses 'haspart' relationship (Pathway->Gene direction)
             # ========================================================================
+            "search_pathway_by_name": """
+                // Search for pathways by name (fuzzy matching)
+                MATCH (p:BioEntity)
+                WHERE (
+                    p.name CONTAINS $name OR
+                    toLower(p.name) CONTAINS toLower($name)
+                  )
+                  AND (
+                    p.id STARTS WITH 'reactome:' OR
+                    p.id STARTS WITH 'wikipathways:' OR
+                    p.id STARTS WITH 'kegg.pathway:'
+                  )
+                  AND p.obsolete = false
+                RETURN
+                  p.name AS name,
+                  p.id AS pathway_id
+                ORDER BY size(p.name) ASC
+                LIMIT 10
+            """,
             "get_genes_in_pathway": """
                 // CORRECTED: haspart goes FROM pathway TO gene
                 MATCH (p:BioEntity)-[:haspart]->(g:BioEntity)
@@ -915,8 +940,9 @@ class Neo4jClient:
             "get_mutations_for_cell_line": """
                 // CORRECTED: Direct Gene -[:mutated_in]-> CellLine relationship
                 // No intermediate mutation nodes, simpler than expected
+                // Support both exact match (ccle:A549_LUNG) and partial (A549)
                 MATCH (g:BioEntity)-[:mutated_in]->(c:BioEntity)
-                WHERE c.id = $cell_line
+                WHERE (c.id = $cell_line OR c.id CONTAINS $cell_line)
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
                   AND c.id STARTS WITH 'ccle:'
@@ -929,8 +955,9 @@ class Neo4jClient:
             """,
             "get_copy_number_for_cell_line": """
                 // CORRECTED: Direct Gene -[:copy_number_altered_in]-> CellLine
+                // Support both exact match and partial match
                 MATCH (g:BioEntity)-[:copy_number_altered_in]->(c:BioEntity)
-                WHERE c.id = $cell_line
+                WHERE (c.id = $cell_line OR c.id CONTAINS $cell_line)
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
                   AND c.id STARTS WITH 'ccle:'
@@ -978,9 +1005,10 @@ class Neo4jClient:
             """,
             "is_mutated_in_cell_line": """
                 // CORRECTED: Direct Gene -[:mutated_in]-> CellLine
+                // Support both exact match and partial match
                 MATCH (g:BioEntity)-[:mutated_in]->(c:BioEntity)
                 WHERE g.id = $gene_id
-                  AND c.id = $cell_line
+                  AND (c.id = $cell_line OR c.id CONTAINS $cell_line)
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
                 RETURN
@@ -995,10 +1023,12 @@ class Neo4jClient:
                 WHERE d.id = $drug_id
                   AND t.id STARTS WITH 'clinicaltrials:'
                 RETURN
-                  t.nct_id AS nct_id,
-                  t.title AS title,
-                  t.phase AS phase,
-                  t.status AS status
+                  split(t.id, ':')[1] AS nct_id,
+                  t.name AS title,
+                  null AS phase,
+                  null AS status,
+                  [] AS conditions,
+                  [] AS interventions
                 SKIP $offset LIMIT $limit
             """,
             "get_trials_for_disease": """
@@ -1006,23 +1036,26 @@ class Neo4jClient:
                 WHERE dis.id = $disease_id
                   AND t.id STARTS WITH 'clinicaltrials:'
                 RETURN
-                  t.nct_id AS nct_id,
-                  t.title AS title,
-                  t.phase AS phase,
-                  t.status AS status
+                  split(t.id, ':')[1] AS nct_id,
+                  t.name AS title,
+                  null AS phase,
+                  null AS status,
+                  [] AS conditions,
+                  [] AS interventions
                 SKIP $offset LIMIT $limit
             """,
             "get_trial_by_id": """
                 MATCH (t:BioEntity)
-                WHERE t.nct_id = $nct_id
-                  AND t.id STARTS WITH 'clinicaltrials:'
+                WHERE t.id = 'clinicaltrials:' + $nct_id
                 RETURN
-                  t.nct_id AS nct_id,
-                  t.title AS title,
-                  t.phase AS phase,
-                  t.status AS status,
-                  t.start_date AS start_date,
-                  t.completion_date AS completion_date
+                  split(t.id, ':')[1] AS nct_id,
+                  t.name AS title,
+                  null AS phase,
+                  null AS status,
+                  null AS start_date,
+                  null AS completion_date,
+                  [] AS conditions,
+                  [] AS interventions
                 LIMIT 1
             """,
             # ========================================================================
@@ -1171,8 +1204,15 @@ class Neo4jClient:
                   AND g.obsolete = false
                 RETURN g.name AS symbol, g.id AS hgnc_id
             """,
+            "hgnc_to_symbol": """
+                MATCH (g:BioEntity)
+                WHERE g.id IN [id IN $hgnc_ids | CASE WHEN id STARTS WITH 'hgnc:' THEN id ELSE 'hgnc:' + id END]
+                  AND g.id STARTS WITH 'hgnc:'
+                  AND g.obsolete = false
+                RETURN g.id AS hgnc_id, g.name AS symbol
+            """,
             "hgnc_to_uniprot": """
-                MATCH (g:BioEntity)-[:has_xref]->(u:BioEntity)
+                MATCH (g:BioEntity)-[:xref]-(u:BioEntity)
                 WHERE g.id IN [id IN $hgnc_ids | CASE WHEN id STARTS WITH 'hgnc:' THEN id ELSE 'hgnc:' + id END]
                   AND g.obsolete = false
                   AND u.id STARTS WITH 'uniprot:'
@@ -1181,7 +1221,7 @@ class Neo4jClient:
             "map_identifiers": """
                 MATCH (source:BioEntity)
                 WHERE source.id IN $identifiers
-                OPTIONAL MATCH (source)-[:has_xref]->(target:BioEntity)
+                OPTIONAL MATCH (source)-[:xref]-(target:BioEntity)
                 WHERE target.id STARTS WITH ($to_namespace + ':')
                 RETURN source.id AS source_id, collect(DISTINCT target.id) AS target_ids
             """,
@@ -1189,12 +1229,17 @@ class Neo4jClient:
             # Tool 12: Relationship Checking (10 types)
             # ========================================================================
             "is_drug_target": """
-                MATCH (d:BioEntity)-[:targets]->(t:BioEntity)
+                // Check both [:targets] and [:indra_rel] for drug-target relationships
+                MATCH (d:BioEntity), (t:BioEntity)
                 WHERE d.id = $drug_id
                   AND t.id = $target_id
                   AND (d.id STARTS WITH 'chebi:' OR d.id STARTS WITH 'chembl:' OR d.id STARTS WITH 'drugbank:')
                   AND t.id STARTS WITH 'hgnc:'
-                RETURN COUNT(*) > 0 AS result
+                OPTIONAL MATCH path1 = (d)-[:targets]->(t)
+                OPTIONAL MATCH path2 = (d)-[r:indra_rel]-(t)
+                WHERE r.stmt_type IN ['Inhibition', 'Activation', 'IncreaseAmount', 'DecreaseAmount']
+                WITH path1, path2
+                RETURN (path1 IS NOT NULL OR path2 IS NOT NULL) AS result
             """,
             "drug_has_indication": """
                 MATCH (d:BioEntity)-[:has_indication]->(dis:BioEntity)
@@ -1211,11 +1256,15 @@ class Neo4jClient:
                 RETURN COUNT(*) > 0 AS result
             """,
             "is_gene_associated_with_disease": """
-                MATCH (g:BioEntity)-[:gene_disease_association]->(d:BioEntity)
+                // Check both [:gene_disease_association] and [:indra_rel] for gene-disease relationships
+                MATCH (g:BioEntity), (d:BioEntity)
                 WHERE g.id = $gene_id
                   AND d.id = $disease_id
                   AND g.id STARTS WITH 'hgnc:'
-                RETURN COUNT(*) > 0 AS result
+                OPTIONAL MATCH path1 = (g)-[:gene_disease_association]->(d)
+                OPTIONAL MATCH path2 = (g)-[r:indra_rel]-(d)
+                WITH path1, path2
+                RETURN (path1 IS NOT NULL OR path2 IS NOT NULL) AS result
             """,
             "has_phenotype": """
                 MATCH (d:BioEntity)-[:has_phenotype]->(p:BioEntity)
@@ -1235,11 +1284,37 @@ class Neo4jClient:
             # ========================================================================
             # Tool 13: Ontology Hierarchy
             # ========================================================================
+            "get_ontology_term": """
+                MATCH (term:BioEntity)
+                WHERE term.obsolete = false
+                  AND (
+                    ($term_id IS NOT NULL AND term.id = $term_id) OR
+                    ($name IS NOT NULL AND term.name = $name) OR
+                    ($namespace IS NOT NULL AND $term_id IS NOT NULL AND term.id = $namespace + ':' + $term_id)
+                  )
+                  AND (
+                    term.id STARTS WITH 'GO:' OR
+                    term.id STARTS WITH 'HP:' OR
+                    term.id STARTS WITH 'MONDO:' OR
+                    term.id STARTS WITH 'DOID:' OR
+                    term.id STARTS WITH 'EFO:' OR
+                    term.id STARTS WITH 'UBERON:' OR
+                    term.id STARTS WITH 'CL:' OR
+                    term.id STARTS WITH 'CHEBI:'
+                  )
+                RETURN
+                  term.name AS name,
+                  term.id AS id,
+                  split(term.id, ':')[0] AS namespace,
+                  term.definition AS definition
+                LIMIT 10
+            """,
             "get_ontology_parents": """
-                MATCH path = (child:BioEntity)-[:isa|:part_of*1..$max_depth]->(parent:BioEntity)
+                MATCH path = (child:BioEntity)-[:isa|part_of*1..10]->(parent:BioEntity)
                 WHERE child.id = $term_id
                   AND child.obsolete = false
                   AND parent.obsolete = false
+                  AND LENGTH(path) <= $max_depth
                 RETURN
                   parent.name AS name,
                   parent.id AS curie,
@@ -1248,10 +1323,11 @@ class Neo4jClient:
                 ORDER BY depth
             """,
             "get_ontology_children": """
-                MATCH path = (parent:BioEntity)<-[:isa|:part_of*1..$max_depth]-(child:BioEntity)
+                MATCH path = (parent:BioEntity)<-[:isa|part_of*1..10]-(child:BioEntity)
                 WHERE parent.id = $term_id
                   AND parent.obsolete = false
                   AND child.obsolete = false
+                  AND LENGTH(path) <= $max_depth
                 RETURN
                   child.name AS name,
                   child.id AS curie,
@@ -1263,10 +1339,12 @@ class Neo4jClient:
                 MATCH (root:BioEntity)
                 WHERE root.id = $term_id
                   AND root.obsolete = false
-                OPTIONAL MATCH parent_path = (root)-[:isa|:part_of*1..$max_depth]->(parent:BioEntity)
+                OPTIONAL MATCH parent_path = (root)-[:isa|part_of*1..10]->(parent:BioEntity)
                 WHERE parent.obsolete = false
-                OPTIONAL MATCH child_path = (root)<-[:isa|:part_of*1..$max_depth]-(child:BioEntity)
+                  AND LENGTH(parent_path) <= $max_depth
+                OPTIONAL MATCH child_path = (root)<-[:isa|part_of*1..10]-(child:BioEntity)
                 WHERE child.obsolete = false
+                  AND LENGTH(child_path) <= $max_depth
                 RETURN
                   root.name AS root_name,
                   root.id AS root_id,
@@ -1308,72 +1386,146 @@ class Neo4jClient:
                 RETURN COUNT(*) > 0 AS result
             """,
             # ========================================================================
-            # Tool 16: Protein Functions
+            # Tool 16: Protein Functions  
+            # Implemented using GO term annotations (properties don't exist in Neo4j)
             # ========================================================================
             "get_enzyme_activities": """
+                // Get protein activities from GO term annotations
                 MATCH (g:BioEntity)
                 WHERE g.id = $gene_id
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
-                WITH g,
-                  CASE WHEN g.is_kinase = true THEN 'kinase' ELSE null END AS act1,
-                  CASE WHEN g.is_phosphatase = true THEN 'phosphatase' ELSE null END AS act2,
-                  CASE WHEN g.is_transcription_factor = true THEN 'transcription_factor' ELSE null END AS act3
-                UNWIND [act1, act2, act3] AS activity
+                OPTIONAL MATCH (g)-[r]->(go:BioEntity)
+                WHERE go.id STARTS WITH 'GO:'
+                  AND (
+                    // Kinase GO terms
+                    go.id IN ['GO:0016301', 'GO:0004672', 'GO:0016773'] OR
+                    go.name CONTAINS 'kinase activity' OR
+                    // Phosphatase GO terms
+                    go.id IN ['GO:0016791', 'GO:0004721', 'GO:0008138'] OR
+                    go.name CONTAINS 'phosphatase activity' OR
+                    // Transcription factor GO terms
+                    go.id IN ['GO:0003700', 'GO:0000981', 'GO:0001227'] OR
+                    go.name CONTAINS 'DNA-binding transcription factor activity'
+                  )
+                WITH g, collect(DISTINCT go) AS go_terms
+                UNWIND go_terms AS go_term
+                WITH g, go_term,
+                  CASE
+                    WHEN go_term.id IN ['GO:0016301', 'GO:0004672', 'GO:0016773']
+                      OR go_term.name CONTAINS 'kinase activity'
+                    THEN 'kinase'
+                    WHEN go_term.id IN ['GO:0016791', 'GO:0004721', 'GO:0008138']
+                      OR go_term.name CONTAINS 'phosphatase activity'
+                    THEN 'phosphatase'
+                    WHEN go_term.id IN ['GO:0003700', 'GO:0000981', 'GO:0001227']
+                      OR go_term.name CONTAINS 'DNA-binding transcription factor activity'
+                    THEN 'transcription_factor'
+                    ELSE null
+                  END AS activity
                 WHERE activity IS NOT NULL
-                RETURN
+                RETURN DISTINCT
                   activity AS activity,
-                  g.ec_number AS ec_number,
+                  null AS ec_number,
                   'high' AS confidence
             """,
             "get_genes_for_activity": """
-                MATCH (g:BioEntity)
+                // Find genes with specific activity using GO terms
+                MATCH (g:BioEntity)-[r]->(go:BioEntity)
                 WHERE g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
+                  AND go.id STARTS WITH 'GO:'
                   AND (
-                    (toLower($activity) = 'kinase' AND g.is_kinase = true) OR
-                    (toLower($activity) = 'phosphatase' AND g.is_phosphatase = true) OR
-                    (toLower($activity) CONTAINS 'transcription' AND g.is_transcription_factor = true)
+                    // Kinase activity
+                    (toLower($activity) = 'kinase' AND (
+                      go.id IN ['GO:0016301', 'GO:0004672', 'GO:0016773'] OR
+                      go.name CONTAINS 'kinase activity'
+                    )) OR
+                    // Phosphatase activity
+                    (toLower($activity) = 'phosphatase' AND (
+                      go.id IN ['GO:0016791', 'GO:0004721', 'GO:0008138'] OR
+                      go.name CONTAINS 'phosphatase activity'
+                    )) OR
+                    // Transcription factor
+                    (toLower($activity) CONTAINS 'transcription' AND (
+                      go.id IN ['GO:0003700', 'GO:0000981', 'GO:0001227'] OR
+                      go.name CONTAINS 'DNA-binding transcription factor activity'
+                    ))
                   )
-                RETURN
+                RETURN DISTINCT
                   g.name AS gene,
                   g.id AS gene_id,
                   g.type AS type
                 SKIP $offset LIMIT $limit
             """,
             "is_kinase": """
+                // Check if gene is a kinase using GO terms
                 MATCH (g:BioEntity)
                 WHERE g.id = $gene_id
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
-                RETURN COALESCE(g.is_kinase, false) AS result
+                OPTIONAL MATCH (g)-[r]->(go:BioEntity)
+                WHERE go.id STARTS WITH 'GO:'
+                  AND (
+                    go.id IN ['GO:0016301', 'GO:0004672', 'GO:0016773'] OR
+                    go.name CONTAINS 'kinase activity'
+                  )
+                RETURN count(go) > 0 AS result
             """,
             "is_phosphatase": """
+                // Check if gene is a phosphatase using GO terms
                 MATCH (g:BioEntity)
                 WHERE g.id = $gene_id
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
-                RETURN COALESCE(g.is_phosphatase, false) AS result
+                OPTIONAL MATCH (g)-[r]->(go:BioEntity)
+                WHERE go.id STARTS WITH 'GO:'
+                  AND (
+                    go.id IN ['GO:0016791', 'GO:0004721', 'GO:0008138'] OR
+                    go.name CONTAINS 'phosphatase activity'
+                  )
+                RETURN count(go) > 0 AS result
             """,
             "is_transcription_factor": """
+                // Check if gene is a transcription factor using GO terms
                 MATCH (g:BioEntity)
                 WHERE g.id = $gene_id
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
-                RETURN COALESCE(g.is_transcription_factor, false) AS result
+                OPTIONAL MATCH (g)-[r]->(go:BioEntity)
+                WHERE go.id STARTS WITH 'GO:'
+                  AND (
+                    go.id IN ['GO:0003700', 'GO:0000981', 'GO:0001227'] OR
+                    go.name CONTAINS 'DNA-binding transcription factor activity'
+                  )
+                RETURN count(go) > 0 AS result
             """,
             "has_enzyme_activity": """
+                // Generic activity check using GO terms
                 MATCH (g:BioEntity)
                 WHERE g.id = $gene_id
                   AND g.id STARTS WITH 'hgnc:'
                   AND g.obsolete = false
-                RETURN
-                  CASE
-                    WHEN toLower($activity) = 'kinase' THEN COALESCE(g.is_kinase, false)
-                    WHEN toLower($activity) = 'phosphatase' THEN COALESCE(g.is_phosphatase, false)
-                    WHEN toLower($activity) CONTAINS 'transcription' THEN COALESCE(g.is_transcription_factor, false)
-                    ELSE false
-                  END AS result
+                OPTIONAL MATCH (g)-[r]->(go:BioEntity)
+                WHERE go.id STARTS WITH 'GO:'
+                  AND (
+                    CASE
+                      WHEN toLower($activity) = 'kinase' THEN (
+                        go.id IN ['GO:0016301', 'GO:0004672', 'GO:0016773'] OR
+                        go.name CONTAINS 'kinase activity'
+                      )
+                      WHEN toLower($activity) = 'phosphatase' THEN (
+                        go.id IN ['GO:0016791', 'GO:0004721', 'GO:0008138'] OR
+                        go.name CONTAINS 'phosphatase activity'
+                      )
+                      WHEN toLower($activity) CONTAINS 'transcription' THEN (
+                        go.id IN ['GO:0003700', 'GO:0000981', 'GO:0001227'] OR
+                        go.name CONTAINS 'DNA-binding transcription factor activity'
+                      )
+                      ELSE false
+                    END
+                  )
+                RETURN count(go) > 0 AS result
             """,
             # ========================================================================
             # Tool 1: Missing queries - domain_to_genes and phenotype_to_genes

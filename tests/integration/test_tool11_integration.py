@@ -272,23 +272,26 @@ class TestTool11EdgeCases:
 
     async def test_empty_identifier_list(self):
         """
-        Empty identifier list should return error.
+        Empty identifier list should raise validation error.
 
-        Validates input validation.
+        Validates input validation at schema level.
         """
-        query = IdentifierQuery(
-            identifiers=[],
-            from_namespace="hgnc.symbol",
-            to_namespace="hgnc",
-            response_format=ResponseFormat.JSON
-        )
+        from pydantic import ValidationError
 
-        result = await cogex_resolve_identifiers(query)
+        # Schema validation should reject empty list
+        with pytest.raises(ValidationError) as exc_info:
+            query = IdentifierQuery(
+                identifiers=[],
+                from_namespace="hgnc.symbol",
+                to_namespace="hgnc",
+                response_format=ResponseFormat.JSON
+            )
 
-        assert result.startswith("Error:"), "Empty list should return error"
-        assert "empty" in result.lower(), f"Error should mention 'empty': {result}"
+        # Verify the error mentions the identifiers field
+        error_str = str(exc_info.value)
+        assert "identifiers" in error_str.lower(), f"Error should mention identifiers: {error_str}"
 
-        logger.info(f"✓ Empty list error: {result}")
+        logger.info(f"✓ Empty list correctly rejected by schema validation")
 
     async def test_single_identifier(self):
         """

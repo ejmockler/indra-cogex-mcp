@@ -177,6 +177,15 @@ async def _convert_identifiers(
         **query_params,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
+
+    # Transform Neo4j records into mappings dict format
+    conversion_data = _transform_backend_response(
+        conversion_data,
+        endpoint,
+        from_namespace,
+        to_namespace
+    )
+
     # Parse results
     mappings, unmapped = _parse_conversion_results(
         data=conversion_data,
@@ -198,6 +207,86 @@ async def _convert_identifiers(
         "from_namespace": from_namespace,
         "to_namespace": to_namespace,
     }
+
+def _transform_backend_response(
+    data: dict[str, Any],
+    endpoint: str,
+    from_namespace: str,
+    to_namespace: str,
+) -> dict[str, Any]:
+    """
+    Transform Neo4j records response into standard mappings format.
+
+    Neo4j returns:
+        {"success": True, "records": [...], "count": N}
+
+    We need:
+        {"success": True, "mappings": {source_id: [target_ids]}}
+
+    Args:
+        data: Backend response
+        endpoint: Query endpoint name
+        from_namespace: Source namespace
+        to_namespace: Target namespace
+
+    Returns:
+        Transformed data with mappings dict
+    """
+    if not data.get("success"):
+        return data
+
+    records = data.get("records", [])
+    if not records:
+        return {"success": True, "mappings": {}}
+
+    mappings = {}
+
+    # Handle different endpoint response formats
+    if endpoint == "symbol_to_hgnc":
+        # Records: [{"symbol": "TP53", "hgnc_id": "hgnc:11998"}]
+        for record in records:
+            symbol = record.get("symbol")
+            hgnc_id = record.get("hgnc_id")
+            if symbol and hgnc_id:
+                # Extract just the ID number from hgnc:11998
+                id_only = hgnc_id.split(":")[-1] if ":" in hgnc_id else hgnc_id
+                mappings[symbol] = [id_only]
+
+    elif endpoint == "hgnc_to_symbol":
+        # Records: [{"hgnc_id": "hgnc:11998", "symbol": "TP53"}]
+        for record in records:
+            hgnc_id = record.get("hgnc_id")
+            symbol = record.get("symbol")
+            if hgnc_id and symbol:
+                # Extract just the ID from hgnc:11998 → 11998
+                source_id = hgnc_id.split(":")[-1] if ":" in hgnc_id else hgnc_id
+                mappings[source_id] = [symbol]
+
+    elif endpoint == "hgnc_to_uniprot":
+        # Records: [{"hgnc_id": "hgnc:11998", "uniprot_ids": ["uniprot:P04637"]}]
+        for record in records:
+            hgnc_id = record.get("hgnc_id")
+            uniprot_ids = record.get("uniprot_ids", [])
+            if hgnc_id and uniprot_ids:
+                # Extract just the ID from hgnc:11998 → 11998
+                source_id = hgnc_id.split(":")[-1] if ":" in hgnc_id else hgnc_id
+                # Extract UniProt IDs from uniprot:P04637 → P04637
+                target_ids = [uid.split(":")[-1] if ":" in uid else uid for uid in uniprot_ids]
+                mappings[source_id] = target_ids
+
+    elif endpoint == "map_identifiers":
+        # Records: [{"source_id": "hgnc:11998", "target_ids": ["uniprot:P04637"]}]
+        for record in records:
+            source_id = record.get("source_id")
+            target_ids = record.get("target_ids", [])
+            if source_id:
+                # Strip namespace prefixes if present
+                clean_source = source_id.split(":")[-1] if ":" in source_id else source_id
+                clean_targets = [tid.split(":")[-1] if ":" in tid else tid for tid in target_ids if tid]
+                if clean_targets:  # Only add if there are targets
+                    mappings[clean_source] = clean_targets
+
+    return {"success": True, "mappings": mappings}
 
 def _select_endpoint(
     identifiers: list[str],
@@ -222,6 +311,12 @@ def _select_endpoint(
     if from_ns == "hgnc.symbol" and to_ns == "hgnc":
         return "symbol_to_hgnc", {
             "symbols": identifiers,
+        }
+
+    # Special case: hgnc → hgnc.symbol (HGNC ID → symbol)
+    if from_ns == "hgnc" and to_ns == "hgnc.symbol":
+        return "hgnc_to_symbol", {
+            "hgnc_ids": identifiers,
         }
 
     # Special case: hgnc → uniprot

@@ -150,17 +150,16 @@ async def _get_genes_in_pathway(
     """
     if not params.pathway:
         raise ValueError("pathway parameter required for get_genes mode")
-    # Parse pathway identifier
-    if isinstance(params.pathway, tuple):
-        pathway_id = f"{params.pathway[0]}:{params.pathway[1]}"
-    else:
-        # Assume it's a pathway name or CURIE
-        pathway_id = params.pathway
+
+    # Resolve pathway identifier (name or CURIE)
+    resolver = get_resolver()
+    pathway_ref = await resolver.resolve_pathway(params.pathway)
+
     adapter = await get_adapter()
 
     # Build query parameters
     query_params = {
-        "pathway_id": pathway_id,
+        "pathway_id": pathway_ref.curie,
         "limit": params.limit,
         "offset": params.offset,
     }
@@ -306,20 +305,19 @@ async def _check_membership(
         raise ValueError("gene parameter required for check_membership mode")
     if not params.pathway:
         raise ValueError("pathway parameter required for check_membership mode")
+
     # Resolve gene identifier
     resolver = get_resolver()
     gene = await resolver.resolve_gene(params.gene)
 
-    # Parse pathway identifier
-    if isinstance(params.pathway, tuple):
-        pathway_id = f"{params.pathway[0]}:{params.pathway[1]}"
-    else:
-        pathway_id = params.pathway
+    # Resolve pathway identifier
+    pathway_ref = await resolver.resolve_pathway(params.pathway)
+
     adapter = await get_adapter()
     result_data = await adapter.query(
         "is_gene_in_pathway",
         gene_id=gene.curie,
-        pathway_id=pathway_id,
+        pathway_id=pathway_ref.curie,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
     # Parse result
@@ -384,11 +382,22 @@ def _parse_pathway_list(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     pathways = []
     for record in data["records"]:
+        # Get pathway CURIE
+        pathway_curie = record.get("pathway_id", record.get("curie", "unknown:unknown"))
+
+        # Extract source from CURIE (e.g., "reactome:R-HSA-109581" → "reactome")
+        source = record.get("source")
+        if not source or source == "unknown":
+            if ":" in pathway_curie:
+                source = pathway_curie.split(":", 1)[0]
+            else:
+                source = "unknown"
+
         pathways.append(
             {
                 "name": record.get("pathway", record.get("name", "Unknown")),
-                "curie": record.get("pathway_id", record.get("curie", "unknown:unknown")),
-                "source": record.get("source", "unknown"),
+                "curie": pathway_curie,
+                "source": source,
                 "description": record.get("description"),
                 "gene_count": record.get("gene_count", 0),
                 "url": record.get("url"),
