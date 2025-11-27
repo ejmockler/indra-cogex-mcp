@@ -10,6 +10,11 @@ across 28+ biomedical databases.
 __version__ = "1.0.0"
 __author__ = "INDRA CoGEx MCP Team"
 
-from cogex_mcp.server import server
+# Lazy import to avoid MCP dependency for standalone usage
+def __getattr__(name):
+    if name == "server":
+        from cogex_mcp.server import server
+        return server
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = ["server", "__version__"]

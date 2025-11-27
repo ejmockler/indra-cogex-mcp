@@ -442,9 +442,8 @@ src/cogex_mcp/
 
 ## Support
 
-- **Documentation**: See `IMPLEMENTATION_GUIDE.md` and `TOOLS_CATALOG.md`
-- **Specifications**: Complete tool schemas in `TOOLS_CATALOG.md`
-- **Architecture**: Detailed design in `IMPLEMENTATION_GUIDE.md`
+- **Documentation**: See `IMPLEMENTATION_GUIDE.md` for complete technical specification
+- **Architecture**: Detailed design patterns and backend integration in `IMPLEMENTATION_GUIDE.md`
 
 ## License
 

@@ -175,6 +175,9 @@ RETURN g.name  // Returns: APOE
 - `xref`, `replaced_by`, `partof`: Ontology relationships
 - `has_side_effect`: Drug side effects
 - `tested_in`, `has_trial`: Clinical trial relationships
+- `associated_with`: General associations
+- `has_citation`: Citation links
+- `has_marker`: Cell marker relationships
 
 ## Common Query Patterns
 

@@ -10,7 +10,7 @@ from typing import Any
 import mcp.types as types
 
 from cogex_mcp.clients.adapter import get_adapter
-from cogex_mcp.services.entity_resolver import get_resolver
+from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
 from cogex_mcp.constants import (
@@ -77,6 +77,21 @@ async def _drug_to_profile(args: dict[str, Any]) -> dict[str, Any]:
     drug = await resolver.resolve_drug(drug_input)
 
     adapter = await get_adapter()
+
+    # Use unified drug_query with mode parameter
+    profile_data = await adapter.query(
+        "drug_query",
+        mode="drug_to_profile",
+        drug_id=drug.curie,
+        include_targets=args.get("include_targets", True),
+        include_indications=args.get("include_indications", True),
+        include_side_effects=args.get("include_side_effects", True),
+        include_trials=args.get("include_trials", False),
+        include_cell_lines=args.get("include_cell_lines", False),
+        timeout=STANDARD_QUERY_TIMEOUT,
+    )
+
+    # Build result with drug info and parsed data
     result = {
         "drug": {
             "name": drug.name,
@@ -86,46 +101,29 @@ async def _drug_to_profile(args: dict[str, Any]) -> dict[str, Any]:
         }
     }
 
-    # Fetch requested features
-    if args.get("include_targets", True):
-        target_data = await adapter.query(
-            "get_targets_for_drug",
-            drug_id=drug.curie,
-            timeout=STANDARD_QUERY_TIMEOUT,
-        )
-        result["targets"] = _parse_drug_targets(target_data)
+    # Parse and add profile data
+    if profile_data.get("success"):
+        # Targets
+        if "records" in profile_data and profile_data["records"]:
+            result["targets"] = _parse_drug_targets(profile_data)
 
-    if args.get("include_indications", True):
-        indication_data = await adapter.query(
-            "get_indications_for_drug",
-            drug_id=drug.curie,
-            timeout=STANDARD_QUERY_TIMEOUT,
-        )
-        result["indications"] = _parse_drug_indications(indication_data)
+        # Indications
+        if "indications_records" in profile_data:
+            indications_data = {"success": True, "records": profile_data["indications_records"]}
+            result["indications"] = _parse_drug_indications(indications_data)
 
-    if args.get("include_side_effects", True):
-        side_effect_data = await adapter.query(
-            "get_side_effects_for_drug",
-            drug_id=drug.curie,
-            timeout=STANDARD_QUERY_TIMEOUT,
-        )
-        result["side_effects"] = _parse_drug_side_effects(side_effect_data)
+        # Side effects
+        if "side_effects_records" in profile_data:
+            se_data = {"success": True, "records": profile_data["side_effects_records"]}
+            result["side_effects"] = _parse_drug_side_effects(se_data)
 
-    if args.get("include_trials", False):
-        trial_data = await adapter.query(
-            "get_trials_for_drug",
-            drug_id=drug.curie,
-            timeout=STANDARD_QUERY_TIMEOUT,
-        )
-        result["trials"] = _parse_drug_trials(trial_data)
+        # Clinical trials (if requested)
+        if args.get("include_trials", False) and "trials" in profile_data:
+            result["trials"] = profile_data.get("trials", [])
 
-    if args.get("include_cell_lines", False):
-        cell_line_data = await adapter.query(
-            "get_sensitive_cell_lines_for_drug",
-            drug_id=drug.curie,
-            timeout=STANDARD_QUERY_TIMEOUT,
-        )
-        result["cell_lines"] = _parse_drug_cell_lines(cell_line_data)
+        # Cell lines (if requested)
+        if args.get("include_cell_lines", False) and "cell_lines" in profile_data:
+            result["cell_lines"] = profile_data.get("cell_lines", [])
 
     return result
 
@@ -141,8 +139,11 @@ async def _side_effect_to_drugs(args: dict[str, Any]) -> dict[str, Any]:
     side_effect_id = side_effect_input if isinstance(side_effect_input, str) else side_effect_input[1]
 
     adapter = await get_adapter()
+
+    # Use unified drug_query with mode parameter
     drug_data = await adapter.query(
-        "get_drugs_for_side_effect",
+        "drug_query",
+        mode="side_effect_to_drugs",
         side_effect_id=side_effect_id,
         limit=limit,
         offset=offset,

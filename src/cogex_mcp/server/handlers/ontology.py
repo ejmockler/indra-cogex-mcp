@@ -76,20 +76,22 @@ async def _get_ontology_parents(params) -> dict[str, Any]:
 
     adapter = await get_adapter()
 
-    # Build query parameters
+    # Build query parameters for ontology hierarchy query
     query_params = {
         "term_id": term.curie,
         "max_depth": params.max_depth,
+        "direction": "parents",
     }
 
-    parent_data = await adapter.query(
-        "get_ontology_parents",
+    # Execute via unified ontology query in neo4j_client
+    result = await adapter.query(
+        "ontology_query",
         **query_params,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
 
-    # Parse parents
-    parents = _parse_ontology_terms(parent_data)
+    # Transform result to expected format
+    parents = result.get("parents", []) if result.get("success") else []
 
     return {
         "root_term": term.model_dump(),
@@ -105,20 +107,22 @@ async def _get_ontology_children(params) -> dict[str, Any]:
 
     adapter = await get_adapter()
 
-    # Build query parameters
+    # Build query parameters for ontology hierarchy query
     query_params = {
         "term_id": term.curie,
         "max_depth": params.max_depth,
+        "direction": "children",
     }
 
-    child_data = await adapter.query(
-        "get_ontology_children",
+    # Execute via unified ontology query in neo4j_client
+    result = await adapter.query(
+        "ontology_query",
         **query_params,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
 
-    # Parse children
-    children = _parse_ontology_terms(child_data)
+    # Transform result to expected format
+    children = result.get("children", []) if result.get("success") else []
 
     return {
         "root_term": term.model_dump(),
@@ -134,48 +138,29 @@ async def _get_ontology_hierarchy(params) -> dict[str, Any]:
 
     adapter = await get_adapter()
 
-    # Build query parameters
+    # Build query parameters for ontology hierarchy query
     query_params = {
         "term_id": term.curie,
         "max_depth": params.max_depth,
+        "direction": "both",
     }
 
-    hierarchy_data = await adapter.query(
-        "get_ontology_hierarchy",
+    # Execute via unified ontology query in neo4j_client
+    result = await adapter.query(
+        "ontology_query",
         **query_params,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
 
-    # Parse both parents and children
-    parents = _parse_ontology_terms(hierarchy_data.get("parents", {}))
-    children = _parse_ontology_terms(hierarchy_data.get("children", {}))
+    # Transform result to expected format
+    parents = result.get("parents", []) if result.get("success") else []
+    children = result.get("children", []) if result.get("success") else []
 
     return {
         "root_term": term.model_dump(),
         "parents": parents,
         "children": children,
     }
-
-
-def _parse_ontology_terms(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Parse ontology terms from backend response."""
-    if not data.get("success") or not data.get("records"):
-        return []
-
-    terms = []
-    for record in data["records"]:
-        terms.append(
-            {
-                "name": record.get("name", record.get("term", "Unknown")),
-                "curie": record.get("curie", record.get("term_id", "unknown:unknown")),
-                "namespace": record.get("namespace", "unknown"),
-                "definition": record.get("definition"),
-                "depth": record.get("depth", 0),
-                "relationship": record.get("relationship", "is_a"),
-            }
-        )
-
-    return terms
 
 
 def _generate_ascii_tree(

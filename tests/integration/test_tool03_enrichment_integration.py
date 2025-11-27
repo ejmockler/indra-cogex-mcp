@@ -9,6 +9,7 @@ Run with: pytest tests/integration/test_tool03_enrichment_integration.py -v -m i
 import pytest
 
 from cogex_mcp.schemas import EnrichmentQuery, EnrichmentSource, EnrichmentType, ResponseFormat
+from tests.integration.utils import assert_json, assert_non_empty
 
 
 @pytest.mark.integration
@@ -42,8 +43,8 @@ class TestTool3DiscreteEnrichment:
         )
 
         result = await integration_adapter.query("enrichment_analysis", **query.model_dump(exclude_none=True))
-        assert result is not None
-        assert isinstance(result, dict)
+        data = assert_json(result)
+        assert_non_empty(data, "results")
 
     async def test_edge_case_single_gene(self, integration_adapter):
         """Edge case: Single gene (minimal enrichment)"""

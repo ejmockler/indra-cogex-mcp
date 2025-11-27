@@ -9,6 +9,7 @@ Run with: pytest tests/integration/test_tool02_subnetwork_integration.py -v -m i
 import pytest
 
 from cogex_mcp.schemas import ResponseFormat, SubnetworkMode, SubnetworkQuery
+from tests.integration.utils import assert_json, assert_non_empty
 
 
 @pytest.mark.integration
@@ -26,7 +27,8 @@ class TestTool2Direct:
         )
 
         result = await integration_adapter.query("extract_subnetwork", **query.model_dump(exclude_none=True))
-        assert result is not None
+        data = assert_json(result)
+        assert_non_empty(data, "statements")
 
     async def test_happy_path_mapk_pathway(self, integration_adapter):
         """Happy path: MAPK pathway genes"""
@@ -39,7 +41,8 @@ class TestTool2Direct:
         )
 
         result = await integration_adapter.query("extract_subnetwork", **query.model_dump(exclude_none=True))
-        assert result is not None
+        data = assert_json(result)
+        assert_non_empty(data, "statements")
         assert isinstance(result, dict)
 
     async def test_edge_case_no_edges(self, integration_adapter):

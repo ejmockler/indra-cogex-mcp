@@ -10,7 +10,7 @@ from typing import Any
 import mcp.types as types
 
 from cogex_mcp.clients.adapter import get_adapter
-from cogex_mcp.services.entity_resolver import get_resolver
+from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
 from cogex_mcp.constants import (
@@ -100,6 +100,7 @@ async def _extract_direct(args: dict[str, Any]) -> dict[str, Any]:
 
     adapter = await get_adapter()
     query_params = {
+        "mode": "direct",
         "gene_ids": [g.curie for g in resolved_genes],
         "statement_types": args.get("statement_types"),
         "min_evidence": args.get("min_evidence_count", 1),
@@ -112,12 +113,15 @@ async def _extract_direct(args: dict[str, Any]) -> dict[str, Any]:
     if args.get("go_filter"):
         query_params["go_term"] = args["go_filter"]
 
-    stmt_data = await adapter.query("indra_subnetwork", **query_params)
-    statements = _parse_subnetwork_statements(stmt_data, args.get("include_evidence", False))
-    nodes = _extract_nodes_from_statements(statements, resolved_genes)
-    statistics = _compute_network_statistics(nodes, statements)
+    # Call extract_subnetwork with mode parameter - data is pre-formatted by SubnetworkClient
+    data = await adapter.query("extract_subnetwork", **query_params)
 
-    return {"nodes": nodes, "statements": statements, "statistics": statistics}
+    # Data is already formatted by SubnetworkClient - return directly
+    return {
+        "nodes": data.get("nodes", []),
+        "statements": data.get("statements", []),
+        "statistics": data.get("statistics", {}),
+    }
 
 
 async def _extract_mediated(args: dict[str, Any]) -> dict[str, Any]:
@@ -131,6 +135,7 @@ async def _extract_mediated(args: dict[str, Any]) -> dict[str, Any]:
 
     adapter = await get_adapter()
     query_params = {
+        "mode": "mediated",
         "gene_ids": [g.curie for g in resolved_genes],
         "statement_types": args.get("statement_types"),
         "min_evidence": args.get("min_evidence_count", 1),
@@ -143,12 +148,16 @@ async def _extract_mediated(args: dict[str, Any]) -> dict[str, Any]:
     if args.get("go_filter"):
         query_params["go_term"] = args["go_filter"]
 
-    stmt_data = await adapter.query("indra_mediated_subnetwork", **query_params)
-    statements = _parse_subnetwork_statements(stmt_data, args.get("include_evidence", False))
-    nodes = _extract_nodes_from_statements(statements, resolved_genes)
-    statistics = _compute_network_statistics(nodes, statements)
+    # Call extract_subnetwork with mode parameter - data is pre-formatted by SubnetworkClient
+    data = await adapter.query("extract_subnetwork", **query_params)
 
-    return {"nodes": nodes, "statements": statements, "statistics": statistics, "note": "Paths shown are two-hop"}
+    # Data is already formatted by SubnetworkClient - return directly
+    return {
+        "nodes": data.get("nodes", []),
+        "statements": data.get("statements", []),
+        "statistics": data.get("statistics", {}),
+        "note": data.get("note", "Paths shown are two-hop"),
+    }
 
 
 async def _extract_shared_upstream(args: dict[str, Any]) -> dict[str, Any]:
@@ -160,11 +169,30 @@ async def _extract_shared_upstream(args: dict[str, Any]) -> dict[str, Any]:
         resolved = await resolver.resolve_gene(gene)
         resolved_genes.append(resolved)
 
+    adapter = await get_adapter()
+    query_params = {
+        "mode": "shared_upstream",
+        "gene_ids": [g.curie for g in resolved_genes],
+        "statement_types": args.get("statement_types"),
+        "min_evidence": args.get("min_evidence_count", 1),
+        "min_belief": args.get("min_belief_score", 0.0),
+        "max_statements": args.get("max_statements", 100),
+        "timeout": STANDARD_QUERY_TIMEOUT,
+    }
+    if args.get("tissue_filter"):
+        query_params["tissue"] = args["tissue_filter"]
+    if args.get("go_filter"):
+        query_params["go_term"] = args["go_filter"]
+
+    # Call extract_subnetwork with mode parameter - data is pre-formatted by SubnetworkClient
+    data = await adapter.query("extract_subnetwork", **query_params)
+
+    # Data is already formatted by SubnetworkClient - return directly
     return {
-        "nodes": [{"name": g.name, "curie": g.curie, "namespace": g.namespace, "identifier": g.identifier} for g in resolved_genes],
-        "statements": [],
-        "statistics": {"node_count": len(resolved_genes), "edge_count": 0, "statement_types": {}, "avg_evidence_per_statement": 0.0, "avg_belief_score": 0.0},
-        "note": "Shared upstream queries not yet implemented in backend",
+        "nodes": data.get("nodes", []),
+        "statements": data.get("statements", []),
+        "statistics": data.get("statistics", {}),
+        "note": data.get("note", "Shared upstream regulators shown"),
     }
 
 
@@ -177,11 +205,30 @@ async def _extract_shared_downstream(args: dict[str, Any]) -> dict[str, Any]:
         resolved = await resolver.resolve_gene(gene)
         resolved_genes.append(resolved)
 
+    adapter = await get_adapter()
+    query_params = {
+        "mode": "shared_downstream",
+        "gene_ids": [g.curie for g in resolved_genes],
+        "statement_types": args.get("statement_types"),
+        "min_evidence": args.get("min_evidence_count", 1),
+        "min_belief": args.get("min_belief_score", 0.0),
+        "max_statements": args.get("max_statements", 100),
+        "timeout": STANDARD_QUERY_TIMEOUT,
+    }
+    if args.get("tissue_filter"):
+        query_params["tissue"] = args["tissue_filter"]
+    if args.get("go_filter"):
+        query_params["go_term"] = args["go_filter"]
+
+    # Call extract_subnetwork with mode parameter - data is pre-formatted by SubnetworkClient
+    data = await adapter.query("extract_subnetwork", **query_params)
+
+    # Data is already formatted by SubnetworkClient - return directly
     return {
-        "nodes": [{"name": g.name, "curie": g.curie, "namespace": g.namespace, "identifier": g.identifier} for g in resolved_genes],
-        "statements": [],
-        "statistics": {"node_count": len(resolved_genes), "edge_count": 0, "statement_types": {}, "avg_evidence_per_statement": 0.0, "avg_belief_score": 0.0},
-        "note": "Shared downstream queries not yet implemented in backend",
+        "nodes": data.get("nodes", []),
+        "statements": data.get("statements", []),
+        "statistics": data.get("statistics", {}),
+        "note": data.get("note", "Shared downstream targets shown"),
     }
 
 

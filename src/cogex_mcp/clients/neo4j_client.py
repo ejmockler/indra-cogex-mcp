@@ -23,6 +23,18 @@ from tenacity import (
     wait_exponential,
 )
 
+from cogex_mcp.clients.disease_client import DiseaseClient
+from cogex_mcp.clients.pathway_client import PathwayClient
+from cogex_mcp.clients.drug_client import DrugClient
+from cogex_mcp.clients.enrichment_client import EnrichmentClient
+from cogex_mcp.clients.clinical_trial_client import ClinicalTrialClient
+from cogex_mcp.clients.cell_line_client import CellLineClient
+from cogex_mcp.clients.variant_client import VariantClient
+from cogex_mcp.clients.cell_marker_client import CellMarkerClient
+from cogex_mcp.clients.literature_client import LiteratureClient
+from cogex_mcp.clients.ontology_client import OntologyClient
+from cogex_mcp.clients.subnetwork_client import SubnetworkClient
+
 logger = logging.getLogger(__name__)
 
 
@@ -193,9 +205,57 @@ class Neo4jClient:
         if query_name == "check_relationship" and "relationship_type" in params:
             query_name, params = self._dispatch_relationship_check(params)
 
-        # Handle extract_subnetwork dispatcher and parameter transformation
+        # Backward compatibility for legacy ontology query names
+        if query_name in ("get_ontology_parents", "get_ontology_children", "get_ontology_hierarchy"):
+            # Map old query names to new unified query name with appropriate direction
+            if query_name == "get_ontology_parents":
+                params["direction"] = "parents"
+            elif query_name == "get_ontology_children":
+                params["direction"] = "children"
+            elif query_name == "get_ontology_hierarchy":
+                # Keep existing direction if specified, otherwise default to "both"
+                params["direction"] = params.get("direction", "both")
+            query_name = "ontology_query"
+
+        # Handle extract_subnetwork - route to subnetwork client
         if query_name == "extract_subnetwork":
-            query_name, params = self._dispatch_subnetwork_mode(params)
+            return await self._execute_subnetwork_extraction(params)
+
+        # Handle enrichment_analysis - route to enrichment client
+        if query_name == "enrichment_analysis":
+            return await self._execute_enrichment(params)
+
+        # Handle disease_query - route to disease client
+        if query_name == "disease_query":
+            return await self._execute_disease_query(params)
+
+        # Handle drug_query - route to drug client
+        if query_name == "drug_query":
+            return await self._execute_drug_query(params)
+
+        # Handle pathway_query - route to pathway client
+        if query_name == "pathway_query":
+            return await self._execute_pathway_query(params)
+
+        # Handle cell_line_query - route to cell line client
+        if query_name == "cell_line_query":
+            return await self._execute_cell_line_query(params)
+
+        # Handle variant_query - route to variant client
+        if query_name == "variant_query":
+            return await self._execute_variant_query(params)
+
+        # Handle cell_marker_query - route to cell marker client
+        if query_name == "cell_marker_query":
+            return await self._execute_cell_marker_query(params)
+
+        # Handle literature_query - route to literature client
+        if query_name == "literature_query":
+            return await self._execute_literature_query(params)
+
+        # Handle ontology_query - route to ontology client
+        if query_name == "ontology_query":
+            return await self._execute_ontology_query(params)
 
         # Map query name to Cypher query
         cypher = self._get_cypher_query(query_name)
@@ -297,7 +357,11 @@ class Neo4jClient:
 
     def _dispatch_subnetwork_mode(self, params: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         """
-        Dispatch extract_subnetwork query to appropriate mode-specific query.
+        DEPRECATED: This dispatcher is no longer used.
+
+        Subnetwork extraction now routes directly to SubnetworkClient via
+        _execute_subnetwork_extraction(). This method is kept for backward
+        compatibility but should not be called.
 
         Args:
             params: Query parameters including mode parameter
@@ -2511,6 +2575,670 @@ class Neo4jClient:
         except asyncio.TimeoutError:
             raise Neo4jError(f"Query timeout after {timeout}ms")
 
+    async def _execute_subnetwork_extraction(self, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Execute subnetwork extraction using the SubnetworkClient.
+
+        Args:
+            params: Query parameters including:
+                - mode: "direct", "mediated", "shared_upstream", "shared_downstream"
+                - gene_ids: List of gene CURIEs
+                - statement_types: Optional list of INDRA statement types
+                - min_evidence: Minimum evidence count (default: 1)
+                - min_belief: Minimum belief score (default: 0.0)
+                - max_statements: Maximum statements to return (default: 100)
+                - tissue: Optional tissue filter
+                - go_term: Optional GO term filter
+
+        Returns:
+            Dict with:
+                - success: bool
+                - nodes: List of gene nodes
+                - statements: List of INDRA statements
+                - statistics: Network statistics
+                - note: Optional mode-specific note
+        """
+        logger.info(f"Executing subnetwork extraction, mode: {params.get('mode', 'direct')}")
+
+        # Create subnetwork client
+        subnetwork_client = SubnetworkClient(neo4j_client=self)
+
+        try:
+            mode = params.get("mode", "direct")
+            gene_ids = params.get("gene_ids", [])
+
+            if not gene_ids or len(gene_ids) < 2:
+                return {
+                    "success": False,
+                    "error": f"Subnetwork extraction requires at least 2 genes, got {len(gene_ids)}",
+                    "nodes": [],
+                    "statements": [],
+                    "statistics": {}
+                }
+
+            # Extract common parameters
+            statement_types = params.get("statement_types")
+            min_evidence = params.get("min_evidence", 1)
+            min_belief = params.get("min_belief", 0.0)
+            max_statements = params.get("max_statements", 100)
+            tissue = params.get("tissue")
+            go_term = params.get("go_term")
+
+            # Route to appropriate SubnetworkClient method based on mode
+            if mode == "direct":
+                result = subnetwork_client.extract_direct(
+                    gene_ids=gene_ids,
+                    statement_types=statement_types,
+                    min_evidence=min_evidence,
+                    min_belief=min_belief,
+                    max_statements=max_statements,
+                    tissue=tissue,
+                    go_term=go_term,
+                )
+            elif mode == "mediated":
+                result = subnetwork_client.extract_mediated(
+                    gene_ids=gene_ids,
+                    statement_types=statement_types,
+                    min_evidence=min_evidence,
+                    min_belief=min_belief,
+                    max_statements=max_statements,
+                    tissue=tissue,
+                    go_term=go_term,
+                )
+            elif mode == "shared_upstream":
+                result = subnetwork_client.extract_shared_upstream(
+                    gene_ids=gene_ids,
+                    statement_types=statement_types,
+                    min_evidence=min_evidence,
+                    min_belief=min_belief,
+                    max_statements=max_statements,
+                    tissue=tissue,
+                    go_term=go_term,
+                )
+            elif mode == "shared_downstream":
+                result = subnetwork_client.extract_shared_downstream(
+                    gene_ids=gene_ids,
+                    statement_types=statement_types,
+                    min_evidence=min_evidence,
+                    min_belief=min_belief,
+                    max_statements=max_statements,
+                    tissue=tissue,
+                    go_term=go_term,
+                )
+            else:
+                logger.warning(f"Unknown subnetwork mode: {mode}")
+                return {
+                    "success": False,
+                    "error": f"Unknown subnetwork mode: {mode}. Valid: direct, mediated, shared_upstream, shared_downstream",
+                    "nodes": [],
+                    "statements": [],
+                    "statistics": {}
+                }
+
+            logger.info(f"Subnetwork extraction complete: {result.get('statistics', {}).get('statement_count', 0)} statements found")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error in subnetwork extraction: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": f"Subnetwork extraction failed: {str(e)}",
+                "nodes": [],
+                "statements": [],
+                "statistics": {}
+            }
+
+    async def _execute_enrichment(self, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Execute enrichment analysis using the EnrichmentClient.
+
+        Args:
+            params: Enrichment parameters including:
+                - gene_ids: List of gene CURIEs
+                - analysis_type: "discrete", "continuous", "signed", "metabolite"
+                - source: "go", "reactome", "wikipathways", etc.
+                - alpha: Significance threshold
+                - correction_method: Multiple testing correction
+                - background_genes: Optional background gene set
+
+        Returns:
+            Enrichment results dict with success flag and results list
+        """
+        logger.info(f"Executing enrichment analysis: {params.get('source')} ({params.get('analysis_type')})")
+
+        # Create enrichment client
+        enrichment_client = EnrichmentClient(neo4j_client=self)
+
+        try:
+            # Run enrichment
+            result = enrichment_client.run_enrichment(
+                gene_ids=params.get("gene_ids", []),
+                source=params.get("source", "go"),
+                analysis_type=params.get("analysis_type", "discrete"),
+                background_gene_ids=params.get("background_genes"),
+                alpha=params.get("alpha", 0.05),
+                correction_method=params.get("correction_method", "fdr_bh"),
+            )
+
+            logger.info(f"Enrichment analysis completed: {len(result.get('results', []))} results")
+            return result
+
+        except Exception as e:
+            logger.error(f"Enrichment analysis failed: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+                "results": [],
+            }
+
+    async def _execute_disease_query(self, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Execute disease query using the DiseaseClient.
+
+        Args:
+            params: Disease query parameters including:
+                - mode: "disease_to_mechanisms", "gene_to_diseases",
+                        "phenotype_to_diseases", "check_association"
+                - disease_id: Disease CURIE (for disease_to_mechanisms, check_association)
+                - gene_id: Gene CURIE (for gene_to_diseases)
+                - phenotype_id: Phenotype CURIE (for phenotype_to_diseases, check_association)
+                - include_genes: Include gene associations (default: True)
+                - include_variants: Include genetic variants (default: True)
+                - include_phenotypes: Include phenotypes (default: True)
+                - include_drugs: Include drug therapies (default: True)
+                - include_trials: Include clinical trials (default: True)
+                - limit: Maximum results for list queries
+                - offset: Pagination offset
+
+        Returns:
+            Disease query results dict with success flag and data
+        """
+        mode = params.get("mode")
+        logger.info(f"Executing disease query: {mode}")
+
+        # Create disease client
+        disease_client = DiseaseClient(neo4j_client=self)
+
+        try:
+            # Route to appropriate method based on mode
+            if mode == "disease_to_mechanisms":
+                result = disease_client.get_disease_mechanisms(
+                    disease_id=params.get("disease_id"),
+                    include_genes=params.get("include_genes", True),
+                    include_phenotypes=params.get("include_phenotypes", True),
+                    min_evidence=params.get("min_evidence", 1),
+                    evidence_sources=params.get("evidence_sources"),
+                )
+            elif mode == "gene_to_diseases":
+                result = disease_client.find_diseases_for_gene(
+                    gene_id=params.get("gene_id"),
+                    limit=params.get("limit", 20),
+                    min_evidence=params.get("min_evidence", 1),
+                )
+            elif mode == "phenotype_to_diseases":
+                result = disease_client.find_diseases_for_phenotype(
+                    phenotype_id=params.get("phenotype_id"),
+                    limit=params.get("limit", 20),
+                )
+            elif mode == "check_association":
+                result = disease_client.check_gene_disease_association(
+                    gene_id=params.get("gene_id"),
+                    disease_id=params.get("disease_id"),
+                )
+            else:
+                raise ValueError(f"Unknown disease query mode: {mode}")
+
+            logger.info(f"Disease query completed: {mode}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Disease query failed ({mode}): {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    async def _execute_drug_query(self, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Execute drug query using the DrugClient.
+
+        Args:
+            params: Drug query parameters including:
+                - mode: "drug_to_profile", "target_to_drugs",
+                        "indication_to_drugs", "side_effect_to_drugs"
+                - drug_id: Drug CURIE (for drug_to_profile)
+                - target_id: Target CURIE (for target_to_drugs)
+                - disease_id: Disease CURIE (for indication_to_drugs)
+                - side_effect_id: Side effect identifier (for side_effect_to_drugs)
+                - include_targets: Include molecular targets (default: True)
+                - include_indications: Include therapeutic indications (default: True)
+                - include_side_effects: Include adverse effects (default: True)
+                - include_trials: Include clinical trials (default: False)
+                - include_cell_lines: Include cell line data (default: False)
+                - action_types: Filter by action types (for target_to_drugs)
+                - limit: Maximum results for list queries
+                - offset: Pagination offset
+
+        Returns:
+            Drug query results dict with success flag and data
+        """
+        mode = params.get("mode")
+        logger.info(f"Executing drug query: {mode}")
+
+        # Create drug client
+        drug_client = DrugClient(neo4j_client=self)
+
+        try:
+            # Route to appropriate method based on mode
+            if mode == "drug_to_profile":
+                result = drug_client.get_drug_profile(
+                    drug_id=params.get("drug_id"),
+                    include_targets=params.get("include_targets", True),
+                    include_indications=params.get("include_indications", True),
+                    include_side_effects=params.get("include_side_effects", True),
+                )
+            elif mode == "target_to_drugs":
+                result = drug_client.find_drugs_for_target(
+                    target_id=params.get("target_id"),
+                    action_types=params.get("action_types"),
+                )
+            elif mode == "indication_to_drugs":
+                result = drug_client.find_drugs_for_indication(
+                    disease_id=params.get("disease_id"),
+                )
+            elif mode == "side_effect_to_drugs":
+                result = drug_client.find_drugs_for_side_effect(
+                    side_effect=params.get("side_effect_id"),
+                )
+            else:
+                raise ValueError(f"Unknown drug query mode: {mode}")
+
+            logger.info(f"Drug query completed: {mode}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Drug query failed ({mode}): {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    async def _execute_pathway_query(self, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Execute pathway query using the PathwayClient.
+
+        Args:
+            params: Pathway query parameters including:
+                - mode: "get_genes", "get_pathways", "find_shared", "check_membership"
+                - pathway_id: Pathway CURIE (for get_genes, check_membership)
+                - gene_id: Gene CURIE (for get_pathways, check_membership)
+                - gene_ids: List of gene CURIEs (for find_shared)
+                - source: Optional pathway source filter (e.g., "reactome", "wikipathways")
+                - limit: Maximum results for list queries
+                - offset: Pagination offset
+
+        Returns:
+            Pathway query results dict with success flag and data
+        """
+        mode = params.get("mode")
+        logger.info(f"Executing pathway query: {mode}")
+
+        # Create pathway client
+        pathway_client = PathwayClient(neo4j_client=self)
+
+        try:
+            # Route to appropriate method based on mode
+            if mode == "get_genes":
+                result = pathway_client.get_genes_in_pathway(
+                    pathway_id=params.get("pathway_id"),
+                    source=params.get("source"),
+                    limit=params.get("limit", 20),
+                    offset=params.get("offset", 0),
+                )
+            elif mode == "get_pathways":
+                result = pathway_client.get_pathways_for_gene(
+                    gene_id=params.get("gene_id"),
+                    source=params.get("source"),
+                    limit=params.get("limit", 20),
+                    offset=params.get("offset", 0),
+                )
+            elif mode == "find_shared":
+                result = pathway_client.get_shared_pathways(
+                    gene_ids=params.get("gene_ids", []),
+                    source=params.get("source"),
+                    limit=params.get("limit", 20),
+                    offset=params.get("offset", 0),
+                )
+            elif mode == "check_membership":
+                result = pathway_client.check_membership(
+                    gene_id=params.get("gene_id"),
+                    pathway_id=params.get("pathway_id"),
+                )
+            else:
+                raise ValueError(f"Unknown pathway query mode: {mode}")
+
+            logger.info(f"Pathway query completed: {mode}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Pathway query failed ({mode}): {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+
+    async def _execute_cell_line_query(self, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Execute cell line query using the CellLineClient.
+
+        Args:
+            params: Cell line query parameters including:
+                - mode: "get_properties", "get_mutated_genes",
+                        "get_cell_lines_with_mutation", "check_mutation"
+                - cell_line: Cell line name (for get_properties, get_mutated_genes, check_mutation)
+                - gene_id: Gene CURIE (for get_cell_lines_with_mutation, check_mutation)
+                - include_mutations: Include mutation data (default: True)
+                - include_copy_number: Include CNA data (default: False)
+                - include_dependencies: Include DepMap dependencies (default: False)
+                - include_expression: Include expression data (default: False)
+                - limit: Maximum results for list queries
+                - offset: Pagination offset
+
+        Returns:
+            Cell line query results dict with success flag and data
+        """
+        mode = params.get("mode")
+        logger.info(f"Executing cell line query: {mode}")
+
+        # Create cell line client
+        cell_line_client = CellLineClient(neo4j_client=self)
+
+        try:
+            # Route to appropriate method based on mode
+            if mode == "get_properties":
+                result = cell_line_client.get_cell_line_profile(
+                    cell_line=params.get("cell_line"),
+                    include_mutations=params.get("include_mutations", True),
+                    include_copy_number=params.get("include_copy_number", False),
+                    include_dependencies=params.get("include_dependencies", False),
+                    include_expression=params.get("include_expression", False),
+                )
+            elif mode == "get_mutated_genes":
+                result = cell_line_client.get_mutated_genes(
+                    cell_line=params.get("cell_line"),
+                )
+            elif mode == "get_cell_lines_with_mutation":
+                result = cell_line_client.get_cell_lines_with_mutation(
+                    gene_id=params.get("gene_id"),
+                )
+            elif mode == "check_mutation":
+                result = cell_line_client.check_mutation(
+                    cell_line=params.get("cell_line"),
+                    gene_id=params.get("gene_id"),
+                )
+            else:
+                raise ValueError(f"Unknown cell line query mode: {mode}")
+
+            logger.info(f"Cell line query completed: {mode}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Cell line query failed ({mode}): {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    async def _execute_clinical_trial_query(self, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Execute clinical trial query using the ClinicalTrialClient.
+
+        Args:
+            params: Clinical trial query parameters including:
+                - mode: "get_for_drug", "get_for_disease", "get_by_id"
+                - drug_id: Drug CURIE (for get_for_drug)
+                - disease_id: Disease CURIE (for get_for_disease)
+                - trial_id: NCT ID (for get_by_id)
+                - phase: Optional list of phases to filter (e.g., [1, 2, 3, 4])
+                - status: Optional trial status filter (e.g., "Recruiting", "Completed")
+                - limit: Maximum results for list queries
+                - offset: Pagination offset
+
+        Returns:
+            Clinical trial query results dict with success flag and data
+        """
+        mode = params.get("mode")
+        logger.info(f"Executing clinical trial query: {mode}")
+
+        # Create clinical trial client
+        trial_client = ClinicalTrialClient(neo4j_client=self)
+
+        try:
+            # Route to appropriate method based on mode
+            if mode == "get_for_drug":
+                result = trial_client.get_drug_trials(
+                    drug_id=params.get("drug_id"),
+                    phase=params.get("phase"),
+                    status=params.get("status"),
+                )
+            elif mode == "get_for_disease":
+                result = trial_client.get_disease_trials(
+                    disease_id=params.get("disease_id"),
+                    phase=params.get("phase"),
+                    status=params.get("status"),
+                )
+            elif mode == "get_by_id":
+                result = trial_client.get_trial_details(
+                    trial_id=params.get("trial_id"),
+                )
+            else:
+                raise ValueError(f"Unknown clinical trial query mode: {mode}")
+
+            logger.info(f"Clinical trial query completed: {mode}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Clinical trial query failed ({mode}): {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    async def _execute_variant_query(self, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Execute variant query using the VariantClient.
+
+        Args:
+            params: Variant query parameters including:
+                - mode: "get_for_gene", "get_for_disease", "get_for_phenotype",
+                        "variant_to_genes", "variant_to_phenotypes", "variant_to_diseases"
+                - gene_id: Gene CURIE (for get_for_gene)
+                - disease_id: Disease CURIE (for get_for_disease)
+                - phenotype: Phenotype name or CURIE (for get_for_phenotype)
+                - variant_id: Variant rsID (for variant_to_* modes)
+                - max_p_value: Maximum p-value threshold (default: 1e-5)
+                - min_p_value: Minimum p-value threshold (optional)
+                - source: Filter by source ("gwas_catalog" or "disgenet")
+
+        Returns:
+            Variant query results dict with success flag and data
+        """
+        mode = params.get("mode")
+        logger.info(f"Executing variant query: {mode}")
+
+        # Create variant client
+        variant_client = VariantClient(neo4j_client=self)
+
+        try:
+            # Route to appropriate method based on mode
+            if mode == "get_for_gene":
+                result = variant_client.get_gene_variants(
+                    gene_id=params.get("gene_id"),
+                    max_p_value=params.get("max_p_value", 1e-5),
+                    min_p_value=params.get("min_p_value"),
+                    source=params.get("source"),
+                )
+            elif mode == "get_for_disease":
+                result = variant_client.get_disease_variants(
+                    disease_id=params.get("disease_id"),
+                    max_p_value=params.get("max_p_value", 1e-5),
+                    min_p_value=params.get("min_p_value"),
+                    source=params.get("source"),
+                )
+            elif mode == "variant_to_genes":
+                result = variant_client.get_variant_genes(
+                    variant_id=params.get("variant_id"),
+                )
+            elif mode == "variant_to_phenotypes":
+                result = variant_client.get_variant_phenotypes(
+                    variant_id=params.get("variant_id"),
+                    max_p_value=params.get("max_p_value", 1e-5),
+                )
+            elif mode == "get_for_phenotype":
+                result = variant_client.get_phenotype_variants(
+                    phenotype=params.get("phenotype"),
+                    max_p_value=params.get("max_p_value", 1e-5),
+                    min_p_value=params.get("min_p_value"),
+                )
+            elif mode == "variant_to_diseases":
+                result = variant_client.get_variant_diseases(
+                    variant_id=params.get("variant_id"),
+                    max_p_value=params.get("max_p_value", 1e-5),
+                )
+            else:
+                raise ValueError(f"Unknown variant query mode: {mode}")
+
+            logger.info(f"Variant query completed: {mode}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Variant query failed ({mode}): {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    async def _execute_literature_query(self, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Execute literature query using the LiteratureClient.
+
+        Args:
+            params: Literature query parameters including:
+                - mode: "get_statements_for_pmid", "get_evidence_for_statement",
+                        "search_by_mesh", "get_statements_by_hashes"
+                - pmid: PubMed ID (for get_statements_for_pmid)
+                - statement_hash: Statement hash (for get_evidence_for_statement)
+                - mesh_terms: List of MeSH terms (for search_by_mesh)
+                - statement_hashes: List of hashes (for get_statements_by_hashes)
+                - include_evidence_text: Include evidence text (default: True)
+                - max_evidence_per_statement: Max evidence per statement (default: 5)
+
+        Returns:
+            Literature query results dict with success flag and data
+        """
+        mode = params.get("mode")
+        logger.info(f"Executing literature query: {mode}")
+
+        # Create literature client
+        literature_client = LiteratureClient(neo4j_client=self)
+
+        try:
+            # Route to appropriate method based on mode
+            if mode == "get_statements_for_pmid":
+                result = literature_client.get_paper_statements(
+                    pmid=params.get("pmid"),
+                    include_evidence_text=params.get("include_evidence_text", True),
+                    max_evidence_per_statement=params.get("max_evidence_per_statement", 5),
+                )
+            elif mode == "get_evidence_for_statement":
+                result = literature_client.get_statement_evidence(
+                    statement_hash=params.get("statement_hash"),
+                    include_evidence_text=params.get("include_evidence_text", True),
+                )
+            elif mode == "search_by_mesh":
+                result = literature_client.search_mesh_literature(
+                    mesh_terms=params.get("mesh_terms", []),
+                )
+            elif mode == "get_statements_by_hashes":
+                result = literature_client.get_statements_by_hashes(
+                    statement_hashes=params.get("statement_hashes", []),
+                    include_evidence_text=params.get("include_evidence_text", True),
+                    max_evidence_per_statement=params.get("max_evidence_per_statement", 5),
+                )
+            else:
+                raise ValueError(f"Unknown literature query mode: {mode}")
+
+            logger.info(f"Literature query completed: {mode}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Literature query failed ({mode}): {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    async def _execute_ontology_query(self, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Execute ontology hierarchy query using the OntologyClient.
+
+        This method is called via the unified 'ontology_query' query name,
+        following the standard pattern used by all other clients.
+
+        Args:
+            params: Ontology query parameters including:
+                - term_id: Ontology term CURIE (e.g., "GO:0006915", "HP:0001250")
+                - max_depth: Maximum traversal depth (1-5, default: 2)
+                - direction: "parents", "children", or "both" (default: "both")
+
+        Returns:
+            Ontology hierarchy results dict with success flag and data
+
+        Note:
+            Query routing: ontology_query -> _execute_ontology_query()
+            Mode is determined by the 'direction' parameter.
+        """
+        logger.info(f"Executing ontology query for term: {params.get('term_id')}")
+
+        # Create ontology client
+        ontology_client = OntologyClient(neo4j_client=self)
+
+        try:
+            term_id = params.get("term_id")
+            max_depth = params.get("max_depth", 2)
+
+            # Determine query type from params
+            # If direction is specified, use get_hierarchy
+            # Otherwise, infer from query context
+            direction = params.get("direction")
+
+            if direction:
+                # Full hierarchy query with direction
+                result = ontology_client.get_hierarchy(
+                    term=term_id,
+                    direction=direction,
+                    max_depth=max_depth,
+                )
+            else:
+                # Determine direction from context or default to "both"
+                # This allows backward compatibility with older calling patterns
+                result = ontology_client.get_hierarchy(
+                    term=term_id,
+                    direction="both",
+                    max_depth=max_depth,
+                )
+
+            logger.info(f"Ontology query completed for: {term_id}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Ontology query failed: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
     async def get_statistics(self) -> dict[str, Any]:
         """
         Get database statistics.
@@ -2547,3 +3275,56 @@ class Neo4jClient:
         except Exception as e:
             logger.warning(f"Failed to get statistics: {e}")
             return {"error": str(e)}
+
+    async def _execute_cell_marker_query(self, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Execute cell marker query using the CellMarkerClient.
+
+        Args:
+            params: Cell marker query parameters including:
+                - mode: "get_markers", "get_cell_types", "check_marker"
+                - cell_type: Cell type name (for get_markers, check_marker)
+                - marker: Gene name or CURIE (for get_cell_types, check_marker)
+                - species: Species filter (default: "human")
+                - tissue: Tissue filter (optional)
+
+        Returns:
+            Cell marker query results dict with success flag and data
+        """
+        mode = params.get("mode")
+        logger.info(f"Executing cell marker query: {mode}")
+
+        # Create cell marker client
+        cell_marker_client = CellMarkerClient(neo4j_client=self)
+
+        try:
+            # Route to appropriate method based on mode
+            if mode == "get_markers":
+                result = cell_marker_client.get_cell_type_markers(
+                    cell_type=params.get("cell_type"),
+                    species=params.get("species", "human"),
+                    tissue=params.get("tissue"),
+                )
+            elif mode == "get_cell_types":
+                result = cell_marker_client.get_marker_cell_types(
+                    marker_gene=params.get("marker"),
+                    species=params.get("species", "human"),
+                    tissue=params.get("tissue"),
+                )
+            elif mode == "check_marker":
+                result = cell_marker_client.check_marker_status(
+                    cell_type=params.get("cell_type"),
+                    marker_gene=params.get("marker"),
+                )
+            else:
+                raise ValueError(f"Unknown cell marker query mode: {mode}")
+
+            logger.info(f"Cell marker query completed: {mode}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Cell marker query failed ({mode}): {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+            }

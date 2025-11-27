@@ -10,7 +10,7 @@ from typing import Any
 import mcp.types as types
 
 from cogex_mcp.clients.adapter import get_adapter
-from cogex_mcp.services.entity_resolver import get_resolver
+from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
 from cogex_mcp.constants import (
@@ -109,6 +109,7 @@ async def _analyze_discrete(args: dict[str, Any]) -> dict[str, Any]:
 
     query_params = {
         "gene_ids": [g.curie for g in resolved_genes],
+        "analysis_type": "discrete",
         "source": args.get("source", "go"),
         "alpha": args.get("alpha", 0.05),
         "correction_method": args.get("correction_method", "fdr_bh"),
@@ -117,7 +118,7 @@ async def _analyze_discrete(args: dict[str, Any]) -> dict[str, Any]:
     }
 
     if background_gene_ids:
-        query_params["background_gene_ids"] = background_gene_ids
+        query_params["background_genes"] = background_gene_ids
 
     # Add INDRA-specific parameters if applicable
     source = args.get("source", "go")
@@ -125,7 +126,7 @@ async def _analyze_discrete(args: dict[str, Any]) -> dict[str, Any]:
         query_params["min_evidence_count"] = args.get("min_evidence_count", 1)
         query_params["min_belief_score"] = args.get("min_belief_score", 0.0)
 
-    enrichment_data = await adapter.query("discrete_analysis", **query_params)
+    enrichment_data = await adapter.query("enrichment_analysis", **query_params)
 
     # Parse results
     results = _parse_enrichment_results(enrichment_data, analysis_type="discrete")
@@ -165,6 +166,7 @@ async def _analyze_continuous(args: dict[str, Any]) -> dict[str, Any]:
 
     query_params = {
         "ranked_genes": resolved_ranking,
+        "analysis_type": "continuous",
         "source": args.get("source", "go"),
         "alpha": args.get("alpha", 0.05),
         "correction_method": args.get("correction_method", "fdr_bh"),
@@ -179,7 +181,7 @@ async def _analyze_continuous(args: dict[str, Any]) -> dict[str, Any]:
         query_params["min_evidence_count"] = args.get("min_evidence_count", 1)
         query_params["min_belief_score"] = args.get("min_belief_score", 0.0)
 
-    enrichment_data = await adapter.query("continuous_analysis", **query_params)
+    enrichment_data = await adapter.query("enrichment_analysis", **query_params)
 
     # Parse results
     results = _parse_enrichment_results(enrichment_data, analysis_type="continuous")
@@ -223,6 +225,7 @@ async def _analyze_signed(args: dict[str, Any]) -> dict[str, Any]:
 
     query_params = {
         "ranked_genes": resolved_ranking,
+        "analysis_type": "signed",
         "source": args.get("source", "go"),
         "alpha": args.get("alpha", 0.05),
         "correction_method": args.get("correction_method", "fdr_bh"),
@@ -237,7 +240,7 @@ async def _analyze_signed(args: dict[str, Any]) -> dict[str, Any]:
         query_params["min_evidence_count"] = args.get("min_evidence_count", 1)
         query_params["min_belief_score"] = args.get("min_belief_score", 0.0)
 
-    enrichment_data = await adapter.query("signed_analysis", **query_params)
+    enrichment_data = await adapter.query("enrichment_analysis", **query_params)
 
     # Parse results
     results = _parse_enrichment_results(enrichment_data, analysis_type="signed")
@@ -270,7 +273,8 @@ async def _analyze_metabolite(args: dict[str, Any]) -> dict[str, Any]:
     adapter = await get_adapter()
 
     query_params = {
-        "metabolite_ids": metabolite_ids,
+        "gene_ids": metabolite_ids,  # Backend expects gene_ids parameter
+        "analysis_type": "metabolite",
         "source": args.get("source", "go"),
         "alpha": args.get("alpha", 0.05),
         "correction_method": args.get("correction_method", "fdr_bh"),
@@ -279,9 +283,9 @@ async def _analyze_metabolite(args: dict[str, Any]) -> dict[str, Any]:
     }
 
     if background_metabolite_ids:
-        query_params["background_metabolite_ids"] = background_metabolite_ids
+        query_params["background_genes"] = background_metabolite_ids
 
-    enrichment_data = await adapter.query("metabolite_discrete_analysis", **query_params)
+    enrichment_data = await adapter.query("enrichment_analysis", **query_params)
 
     # Parse results
     results = _parse_enrichment_results(enrichment_data, analysis_type="metabolite")

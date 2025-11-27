@@ -9,6 +9,7 @@ Run with: pytest tests/integration/test_tool01_gene_integration.py -v -m integra
 import pytest
 
 from cogex_mcp.schemas import GeneFeatureQuery, QueryMode, ResponseFormat
+from tests.integration.utils import assert_json, assert_non_empty, assert_keys
 
 
 @pytest.mark.integration
@@ -42,13 +43,13 @@ class TestTool1GeneToFeatures:
 
         result = await integration_adapter.query("gene_to_features", **query.model_dump(exclude_none=True))
 
-        # Validate structure
-        assert result is not None
-        assert isinstance(result, dict)
-
-        # TP53 should have substantial data
-        # Check for expected fields (structure depends on implementation)
-        assert len(str(result)) > 100, "Should return basic gene info and features"  # Relaxed from 500 due to REST API limitations
+        data = assert_json(result)
+        assert_keys(data, ["gene"])
+        assert_non_empty(data, "gene")
+        assert_non_empty(data, "go_terms")
+        assert_non_empty(data, "pathways")
+        # Expression can be sparse by backend; require at least one row
+        assert_non_empty(data, "expression", min_len=1)
 
     async def test_edge_case_unknown_gene(self, integration_adapter):
         """Edge case: Unknown gene should return empty or error gracefully"""
@@ -114,9 +115,8 @@ class TestTool1TissueToGenes:
 
         result = await integration_adapter.query("tissue_to_genes", **query.model_dump(exclude_none=True))
 
-        # Validate
-        assert result is not None
-        assert isinstance(result, dict)
+        data = assert_json(result)
+        assert_non_empty(data, "genes", min_len=1)
 
     async def test_edge_case_unknown_tissue(self, integration_adapter):
         """Edge case: Unknown tissue"""
@@ -187,8 +187,8 @@ class TestTool1GOToGenes:
 
         result = await integration_adapter.query("go_to_genes", **query.model_dump(exclude_none=True))
 
-        assert result is not None
-        assert isinstance(result, dict)
+        data = assert_json(result)
+        assert_non_empty(data, "genes", min_len=1)
 
     async def test_edge_case_invalid_go_term(self, integration_adapter):
         """Edge case: Invalid GO term format"""

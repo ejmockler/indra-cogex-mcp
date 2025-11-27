@@ -10,7 +10,7 @@ from typing import Any
 import mcp.types as types
 
 from cogex_mcp.clients.adapter import get_adapter
-from cogex_mcp.services.entity_resolver import get_resolver
+from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
 from cogex_mcp.constants import (
@@ -96,6 +96,7 @@ async def _get_genes_in_pathway(args: dict[str, Any]) -> dict[str, Any]:
 
     # Build query parameters
     query_params = {
+        "mode": "get_genes",
         "pathway_id": pathway_id,
         "limit": args.get("limit", 20),
         "offset": args.get("offset", 0),
@@ -105,7 +106,7 @@ async def _get_genes_in_pathway(args: dict[str, Any]) -> dict[str, Any]:
     if args.get("pathway_source"):
         query_params["source"] = args["pathway_source"]
 
-    pathway_data = await adapter.query("get_genes_in_pathway", **query_params)
+    pathway_data = await adapter.query("pathway_query", **query_params)
 
     # Parse pathway metadata
     pathway_node = _parse_pathway_node(pathway_data.get("pathway", {}))
@@ -141,6 +142,7 @@ async def _get_pathways_for_gene(args: dict[str, Any]) -> dict[str, Any]:
 
     # Build query parameters
     query_params = {
+        "mode": "get_pathways",
         "gene_id": gene.curie,
         "limit": args.get("limit", 20),
         "offset": args.get("offset", 0),
@@ -150,7 +152,7 @@ async def _get_pathways_for_gene(args: dict[str, Any]) -> dict[str, Any]:
     if args.get("pathway_source"):
         query_params["source"] = args["pathway_source"]
 
-    pathway_data = await adapter.query("get_pathways_for_gene", **query_params)
+    pathway_data = await adapter.query("pathway_query", **query_params)
 
     # Parse pathway list
     pathways = _parse_pathway_list(pathway_data)
@@ -187,6 +189,7 @@ async def _find_shared_pathways(args: dict[str, Any]) -> dict[str, Any]:
 
     # Build query parameters
     query_params = {
+        "mode": "find_shared",
         "gene_ids": gene_curies,
         "limit": args.get("limit", 20),
         "offset": args.get("offset", 0),
@@ -196,7 +199,7 @@ async def _find_shared_pathways(args: dict[str, Any]) -> dict[str, Any]:
     if args.get("pathway_source"):
         query_params["source"] = args["pathway_source"]
 
-    pathway_data = await adapter.query("get_shared_pathways_for_genes", **query_params)
+    pathway_data = await adapter.query("pathway_query", **query_params)
 
     # Parse pathway list
     pathways = _parse_pathway_list(pathway_data)
@@ -234,7 +237,8 @@ async def _check_pathway_membership(args: dict[str, Any]) -> dict[str, Any]:
 
     adapter = await get_adapter()
     result_data = await adapter.query(
-        "is_gene_in_pathway",
+        "pathway_query",
+        mode="check_membership",
         gene_id=gene.curie,
         pathway_id=pathway_id,
         timeout=STANDARD_QUERY_TIMEOUT,

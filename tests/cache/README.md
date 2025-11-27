@@ -437,6 +437,5 @@ When adding new cache tests:
 
 ## References
 
-- [PHASE6_PLAN.md](../../PHASE6_PLAN.md) - Overall testing strategy
 - [src/cogex_mcp/services/cache.py](../../src/cogex_mcp/services/cache.py) - Cache implementation
 - [cachetools documentation](https://cachetools.readthedocs.io/) - Underlying cache library

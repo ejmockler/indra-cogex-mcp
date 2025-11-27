@@ -9,6 +9,7 @@ Run with: pytest tests/integration/test_tool04_drug_integration.py -v -m integra
 import pytest
 
 from cogex_mcp.schemas import DrugEffectQuery, DrugQueryMode, ResponseFormat
+from tests.integration.utils import assert_json, assert_keys, assert_non_empty
 
 
 @pytest.mark.integration
@@ -41,11 +42,11 @@ class TestTool4DrugToProfile:
 
         result = await integration_adapter.query("drug_to_profile", **query.model_dump(exclude_none=True))
 
-        # Validate
-        assert result is not None
-        assert isinstance(result, dict)
-        # Note: Neo4j lacks drug/target relationship data, so response may be minimal
-        assert len(str(result)) > 40, "Should return at least basic response structure"
+        data = assert_json(result)
+        assert_keys(data, ["drug"])
+        # Minimal presence checks; imatinib should have at least one target and indication
+        assert_non_empty(data, "targets")
+        assert_non_empty(data, "indications")
 
     async def test_edge_case_unknown_drug(self, integration_adapter):
         """Edge case: Unknown/fake drug"""
@@ -109,8 +110,8 @@ class TestTool4SideEffectToDrugs:
 
         result = await integration_adapter.query("side_effect_to_drugs", **query.model_dump(exclude_none=True))
 
-        assert result is not None
-        assert isinstance(result, dict)
+        data = assert_json(result)
+        assert_non_empty(data, "drugs")
 
     async def test_edge_case_rare_side_effect(self, integration_adapter):
         """Edge case: Very rare/specific side effect"""

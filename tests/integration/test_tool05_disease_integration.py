@@ -9,6 +9,7 @@ Run with: pytest tests/integration/test_tool05_disease_integration.py -v -m inte
 import pytest
 
 from cogex_mcp.schemas import DiseasePhenotypeQuery, DiseaseQueryMode, ResponseFormat
+from tests.integration.utils import assert_json, assert_keys, assert_non_empty
 
 
 @pytest.mark.integration
@@ -42,10 +43,9 @@ class TestTool5DiseaseToMechanisms:
 
         result = await integration_adapter.query("disease_to_mechanisms", **query.model_dump(exclude_none=True))
 
-        assert result is not None
-        assert isinstance(result, dict)
-        # Note: Neo4j lacks disease/gene relationship data, so response may be minimal
-        assert len(str(result)) > 40, "Should return at least basic response structure"
+        data = assert_json(result)
+        assert_keys(data, ["disease"])
+        assert_non_empty(data, "genes")
 
     async def test_edge_case_rare_disease(self, integration_adapter):
         """Edge case: Very rare disease with limited data"""
@@ -104,8 +104,8 @@ class TestTool5PhenotypeToDiseases:
 
         result = await integration_adapter.query("phenotype_to_diseases", **query.model_dump(exclude_none=True))
 
-        assert result is not None
-        assert isinstance(result, dict)
+        data = assert_json(result)
+        assert_non_empty(data, "diseases")
 
     async def test_edge_case_rare_phenotype(self, integration_adapter):
         """Edge case: Very specific/rare phenotype"""

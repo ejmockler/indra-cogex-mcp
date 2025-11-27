@@ -10,7 +10,7 @@ from typing import Any
 import mcp.types as types
 
 from cogex_mcp.clients.adapter import get_adapter
-from cogex_mcp.services.entity_resolver import get_resolver
+from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
 from cogex_mcp.services.formatter import get_formatter
 from cogex_mcp.services.pagination import get_pagination
 from cogex_mcp.constants import (
@@ -85,9 +85,8 @@ async def _get_trials_for_drug(args: dict[str, Any]) -> dict[str, Any]:
 
     # Build query parameters
     query_params = {
+        "mode": "get_for_drug",
         "drug_id": drug.curie,
-        "limit": args.get("limit", 20),
-        "offset": args.get("offset", 0),
         "timeout": STANDARD_QUERY_TIMEOUT,
     }
 
@@ -98,16 +97,16 @@ async def _get_trials_for_drug(args: dict[str, Any]) -> dict[str, Any]:
         query_params["status"] = args["status"]
 
     adapter = await get_adapter()
-    trial_data = await adapter.query("get_trials_for_drug", **query_params)
+    trial_data = await adapter.query("clinical_trial_query", **query_params)
 
-    # Parse trials
-    trials = _parse_trial_list(trial_data)
+    # Extract trials from response
+    trials = trial_data.get("trials", [])
 
     # Create pagination metadata
     pagination_service = get_pagination()
     pagination = pagination_service.paginate(
         items=trials,
-        total_count=trial_data.get("total_count", len(trials)),
+        total_count=trial_data.get("total_trials", len(trials)),
         offset=args.get("offset", 0),
         limit=args.get("limit", 20),
     )
@@ -128,9 +127,8 @@ async def _get_trials_for_disease(args: dict[str, Any]) -> dict[str, Any]:
 
     # Build query parameters
     query_params = {
+        "mode": "get_for_disease",
         "disease_id": disease.curie,
-        "limit": args.get("limit", 20),
-        "offset": args.get("offset", 0),
         "timeout": STANDARD_QUERY_TIMEOUT,
     }
 
@@ -141,16 +139,16 @@ async def _get_trials_for_disease(args: dict[str, Any]) -> dict[str, Any]:
         query_params["status"] = args["status"]
 
     adapter = await get_adapter()
-    trial_data = await adapter.query("get_trials_for_disease", **query_params)
+    trial_data = await adapter.query("clinical_trial_query", **query_params)
 
-    # Parse trials
-    trials = _parse_trial_list(trial_data)
+    # Extract trials from response
+    trials = trial_data.get("trials", [])
 
     # Create pagination metadata
     pagination_service = get_pagination()
     pagination = pagination_service.paginate(
         items=trials,
-        total_count=trial_data.get("total_count", len(trials)),
+        total_count=trial_data.get("total_trials", len(trials)),
         offset=args.get("offset", 0),
         limit=args.get("limit", 20),
     )
@@ -167,63 +165,20 @@ async def _get_trial_by_id(args: dict[str, Any]) -> dict[str, Any]:
 
     adapter = await get_adapter()
     trial_data = await adapter.query(
-        "get_trial_by_id",
-        nct_id=trial_id,
+        "clinical_trial_query",
+        mode="get_by_id",
+        trial_id=trial_id,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
 
     if not trial_data.get("success"):
         raise ValueError(f"Trial {trial_id} not found")
 
-    # Parse single trial
-    trial = _parse_single_trial(trial_data.get("record", {}))
-
     return {
-        "trial": trial,
+        "trial_details": trial_data,
     }
 
 
-# Data parsing helpers for Tool 8
-def _parse_trial_list(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Parse list of clinical trials from backend response."""
-    if not data.get("success") or not data.get("records"):
-        return []
-
-    trials = []
-    for record in data["records"]:
-        trials.append(_parse_single_trial(record))
-
-    return trials
-
-
-def _parse_single_trial(record: dict[str, Any]) -> dict[str, Any]:
-    """Parse a single clinical trial record."""
-    nct_id = record.get("nct_id", "unknown")
-
-    # Build ClinicalTrials.gov URL
-    url = f"https://clinicaltrials.gov/ct2/show/{nct_id}"
-
-    trial = {
-        "nct_id": nct_id,
-        "title": record.get("title", "Unknown"),
-        "phase": record.get("phase"),
-        "status": record.get("status", "unknown"),
-        "conditions": record.get("conditions", []),
-        "interventions": record.get("interventions", []),
-        "url": url,
-    }
-
-    # Add optional fields if available
-    if "start_date" in record:
-        trial["start_date"] = record["start_date"]
-    if "completion_date" in record:
-        trial["completion_date"] = record["completion_date"]
-    if "enrollment" in record:
-        trial["enrollment"] = record["enrollment"]
-    if "sponsor" in record:
-        trial["sponsor"] = record["sponsor"]
-
-    return trial
 
 
 

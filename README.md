@@ -312,6 +312,128 @@ cogex_extract_subnetwork(mode="shared_upstream", genes=["IL6", "IL1B", "TNF"])
 cogex_analyze_kinase_enrichment(phosphosites=["MAPK1_T185", "MAPK1_Y187"])
 ```
 
+## Subnetwork Extraction
+
+Extract mechanistic networks from INDRA CoGEx knowledge graph:
+
+### Quick Start
+
+```python
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+server_params = StdioServerParameters(
+    command="cogex-mcp",
+    env={
+        "NEO4J_URL": "bolt://your-server:7687",
+        "NEO4J_USER": "neo4j",
+        "NEO4J_PASSWORD": "your_password"
+    }
+)
+
+async with stdio_client(server_params) as (read, write):
+    async with ClientSession(read, write) as session:
+        await session.initialize()
+
+        # Direct interactions between TP53 and MDM2
+        result = await session.call_tool(
+            "cogex_extract_subnetwork",
+            arguments={
+                "mode": "direct",
+                "genes": ["TP53", "MDM2"],
+                "min_evidence_count": 2,
+                "response_format": "json"
+            }
+        )
+```
+
+### Query Modes
+
+| Mode | Pattern | Use Case | Example |
+|------|---------|----------|---------|
+| **direct** | A→B | Find how genes interact directly | TP53-MDM2 feedback loop |
+| **mediated** | A→X→B | Discover pathways connecting genes | ALS gene connections |
+| **shared_upstream** | A←X→B | Find master regulators | Apoptosis regulators |
+| **shared_downstream** | A→X←B | Find common targets | Transcription factor targets |
+| **source_to_targets** | S→[T1,T2,T3] | Map downstream signaling | MAPK1 substrates |
+
+### Advanced Filtering
+
+```python
+# Brain-specific Alzheimer's network
+result = await session.call_tool(
+    "cogex_extract_subnetwork",
+    arguments={
+        "mode": "direct",
+        "genes": ["APP", "PSEN1", "MAPT"],
+        "tissue_filter": "brain",
+        "min_evidence_count": 3,
+        "min_belief_score": 0.7,
+        "statement_types": ["Phosphorylation", "Activation"],
+        "response_format": "json"
+    }
+)
+
+# MAPK phosphorylation cascade
+result = await session.call_tool(
+    "cogex_extract_subnetwork",
+    arguments={
+        "mode": "source_to_targets",
+        "source_gene": "MAPK1",
+        "target_genes": ["FOS", "JUN", "ELK1", "MYC"],
+        "statement_types": ["Phosphorylation"],
+        "include_evidence": True,
+        "max_statements": 100,
+        "response_format": "json"
+    }
+)
+```
+
+### Output Format
+
+**JSON Response Structure:**
+```json
+{
+  "nodes": [
+    {
+      "name": "TP53",
+      "curie": "hgnc:11998",
+      "namespace": "hgnc",
+      "identifier": "11998"
+    }
+  ],
+  "statements": [
+    {
+      "stmt_hash": "abc123...",
+      "stmt_type": "Phosphorylation",
+      "subject": {"name": "ATM", "curie": "hgnc:795"},
+      "object": {"name": "TP53", "curie": "hgnc:11998"},
+      "residue": "S",
+      "position": "15",
+      "evidence_count": 12,
+      "belief_score": 0.95,
+      "sources": ["reach", "sparser"]
+    }
+  ],
+  "statistics": {
+    "node_count": 10,
+    "edge_count": 25,
+    "statement_types": {
+      "Phosphorylation": 15,
+      "Activation": 10
+    },
+    "avg_evidence_per_statement": 8.2,
+    "avg_belief_score": 0.87
+  }
+}
+```
+
+### Documentation
+
+- **Comprehensive Guide**: [docs/subnetwork_extraction_guide.md](./docs/subnetwork_extraction_guide.md)
+- **Code Examples**: [examples/subnetwork_extraction.py](./examples/subnetwork_extraction.py)
+- **Integration Tests**: [tests/integration/test_tool02_subnetwork_integration.py](./tests/integration/test_tool02_subnetwork_integration.py)
+
 ## Architecture
 
 ### Data Sources
@@ -393,8 +515,8 @@ mypy src
 
 ## Documentation
 
-- **[IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)** - Complete technical specification, architecture, 7-week implementation plan
-- **[TOOLS_CATALOG.md](./TOOLS_CATALOG.md)** - Copy-paste-ready MCP schemas for all 16 tools
+- **[IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)** - Complete technical specification, architecture
+- **[QUICK_START.md](./QUICK_START.md)** - Detailed usage guide for all 16 tools
 - **[INDRA CoGEx Docs](https://github.com/gyorilab/indra_cogex)** - Upstream knowledge graph source
 - **[API Reference](https://discovery.indra.bio/apidocs)** - REST API documentation
 

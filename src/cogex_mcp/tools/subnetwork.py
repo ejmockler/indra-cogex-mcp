@@ -191,8 +191,37 @@ async def cogex_extract_subnetwork(
 async def _extract_direct(
     params: SubnetworkQuery) -> dict[str, Any]:
     """
-    Mode: direct
-    Extract direct mechanistic edges between specified genes.
+    Mode: direct - Extract direct mechanistic edges between specified genes.
+
+    Finds one-hop relationships (A→B) such as phosphorylation, activation,
+    inhibition, ubiquitination, and other direct molecular interactions.
+
+    Args:
+        params: SubnetworkQuery with:
+            - genes: List of gene symbols or CURIEs (min 2)
+            - statement_types: Optional filter (e.g., ["Phosphorylation"])
+            - min_evidence_count: Minimum supporting evidences
+            - min_belief_score: Minimum confidence (0-1)
+            - tissue_filter: Optional tissue restriction
+            - go_filter: Optional GO term restriction
+
+    Returns:
+        Dict with nodes, statements, and statistics
+
+    Example:
+        >>> params = SubnetworkQuery(
+        ...     mode="direct",
+        ...     genes=["TP53", "MDM2"],
+        ...     min_evidence_count=2,
+        ...     response_format="json"
+        ... )
+        >>> result = await _extract_direct(params)
+        >>> print(result['statistics']['edge_count'])
+        15
+
+    See Also:
+        - _extract_mediated: For indirect connections
+        - docs/subnetwork_extraction_guide.md: Complete usage guide
     """
     if not params.genes or len(params.genes) < 2:
         raise ValueError("direct mode requires at least 2 genes")
@@ -239,8 +268,36 @@ async def _extract_direct(
 async def _extract_mediated(
     params: SubnetworkQuery) -> dict[str, Any]:
     """
-    Mode: mediated
-    Find two-hop paths connecting genes through intermediates (A→X→B).
+    Mode: mediated - Find two-hop paths connecting genes through intermediates.
+
+    Discovers indirect connections (A→X→B) revealing pathway intermediaries
+    and potential drug targets that link genes mechanistically.
+
+    Args:
+        params: SubnetworkQuery with:
+            - genes: List of gene symbols or CURIEs (min 2)
+            - statement_types: Optional mechanism filter
+            - min_evidence_count: Minimum supporting evidences
+            - max_statements: Limit results (can be large)
+
+    Returns:
+        Dict with nodes (including intermediaries), statements, statistics,
+        and a note indicating two-hop paths
+
+    Example:
+        >>> params = SubnetworkQuery(
+        ...     mode="mediated",
+        ...     genes=["BRCA1", "RAD51"],
+        ...     max_statements=100
+        ... )
+        >>> result = await _extract_mediated(params)
+        >>> # Find intermediaries (nodes not in original gene list)
+        >>> intermediaries = [n for n in result['nodes']
+        ...                   if n['name'] not in ['BRCA1', 'RAD51']]
+
+    See Also:
+        - _extract_direct: For direct interactions only
+        - examples/subnetwork_extraction.py: Example 2 (ALS genes)
     """
     if not params.genes or len(params.genes) < 2:
         raise ValueError("mediated mode requires at least 2 genes")
@@ -283,8 +340,40 @@ async def _extract_mediated(
 async def _extract_shared_upstream(
     params: SubnetworkQuery) -> dict[str, Any]:
     """
-    Mode: shared_upstream
-    Find shared regulators (A←X→B).
+    Mode: shared_upstream - Find shared regulators (master regulators).
+
+    Identifies proteins that regulate multiple target genes (A←X→B pattern),
+    revealing master control points useful for understanding coordinated
+    regulation and identifying therapeutic targets.
+
+    Args:
+        params: SubnetworkQuery with:
+            - genes: List of target genes to find shared regulators for
+            - statement_types: Filter mechanism (e.g., ["Phosphorylation", "Activation"])
+            - min_evidence_count: Quality threshold
+
+    Returns:
+        Dict with nodes, statements, and statistics. Currently returns
+        placeholder with "not yet implemented" note if backend unavailable.
+
+    Example:
+        >>> params = SubnetworkQuery(
+        ...     mode="shared_upstream",
+        ...     genes=["BAX", "BCL2", "CASP3"],
+        ...     statement_types=["Activation", "Inhibition"]
+        ... )
+        >>> result = await _extract_shared_upstream(params)
+        >>> if 'note' not in result or 'not yet implemented' not in result['note']:
+        ...     # Backend supports this mode
+        ...     regulators = {s['subject']['name'] for s in result['statements']}
+
+    Note:
+        Backend support for this mode may be limited. Check result['note']
+        for implementation status.
+
+    See Also:
+        - _extract_shared_downstream: For finding shared targets instead
+        - examples/subnetwork_extraction.py: Example 3 (Apoptosis regulators)
     """
     if not params.genes or len(params.genes) < 2:
         raise ValueError("shared_upstream mode requires at least 2 genes")
@@ -311,8 +400,40 @@ async def _extract_shared_upstream(
 async def _extract_shared_downstream(
     params: SubnetworkQuery) -> dict[str, Any]:
     """
-    Mode: shared_downstream
-    Find shared targets (A→X←B).
+    Mode: shared_downstream - Find shared targets (convergence points).
+
+    Identifies proteins that are targeted by multiple source genes (A→X←B),
+    revealing pathway convergence points and potential bottlenecks in
+    cellular signaling.
+
+    Args:
+        params: SubnetworkQuery with:
+            - genes: List of source genes to find shared targets for
+            - statement_types: Filter mechanism types
+            - min_evidence_count: Quality threshold
+
+    Returns:
+        Dict with nodes, statements, and statistics. Currently returns
+        placeholder with "not yet implemented" note if backend unavailable.
+
+    Example:
+        >>> params = SubnetworkQuery(
+        ...     mode="shared_downstream",
+        ...     genes=["TP53", "MYC", "RB1"],
+        ...     min_evidence_count=3
+        ... )
+        >>> result = await _extract_shared_downstream(params)
+        >>> if 'note' not in result or 'not yet implemented' not in result['note']:
+        ...     # Find genes regulated by multiple TFs
+        ...     targets = {s['object']['name'] for s in result['statements']}
+
+    Note:
+        Backend support for this mode may be limited. Check result['note']
+        for implementation status.
+
+    See Also:
+        - _extract_shared_upstream: For finding shared regulators instead
+        - docs/subnetwork_extraction_guide.md: Mode descriptions
     """
     if not params.genes or len(params.genes) < 2:
         raise ValueError("shared_downstream mode requires at least 2 genes")
@@ -339,8 +460,47 @@ async def _extract_shared_downstream(
 async def _extract_source_to_targets(
     params: SubnetworkQuery) -> dict[str, Any]:
     """
-    Mode: source_to_targets
-    Find all downstream targets of a source gene.
+    Mode: source_to_targets - Map downstream signaling from one source gene.
+
+    Finds all (or specified) downstream targets of a source gene, useful for
+    mapping kinase substrates, transcription factor targets, or any
+    one-to-many regulatory relationship.
+
+    Args:
+        params: SubnetworkQuery with:
+            - source_gene: Source gene symbol or CURIE (required)
+            - target_genes: Optional list of specific targets to check
+            - statement_types: Filter mechanisms (e.g., ["Phosphorylation"])
+            - min_evidence_count: Evidence threshold
+
+    Returns:
+        Dict with source_gene info, nodes, statements, and statistics.
+        If target_genes specified, only shows connections to those targets.
+
+    Example:
+        >>> # Find all MAPK1 phosphorylation targets
+        >>> params = SubnetworkQuery(
+        ...     mode="source_to_targets",
+        ...     source_gene="MAPK1",
+        ...     statement_types=["Phosphorylation"],
+        ...     max_statements=200
+        ... )
+        >>> result = await _extract_source_to_targets(params)
+        >>> substrates = {s['object']['name'] for s in result['statements']}
+        >>> print(f"MAPK1 phosphorylates {len(substrates)} proteins")
+
+        >>> # Check specific targets only
+        >>> params = SubnetworkQuery(
+        ...     mode="source_to_targets",
+        ...     source_gene="MAPK1",
+        ...     target_genes=["FOS", "JUN", "ELK1"],
+        ...     statement_types=["Phosphorylation"]
+        ... )
+        >>> result = await _extract_source_to_targets(params)
+
+    See Also:
+        - _extract_direct: For bidirectional interactions
+        - examples/subnetwork_extraction.py: Example 6 (Advanced filtering)
     """
     if not params.source_gene:
         raise ValueError("source_to_targets mode requires source_gene parameter")
@@ -393,7 +553,33 @@ def _parse_statements(
     data: dict[str, Any],
     include_evidence: bool = False,
 ) -> list[IndraStatement]:
-    """Parse INDRA statements from backend response."""
+    """
+    Parse INDRA statements from backend response into structured format.
+
+    Converts raw Neo4j/backend response into typed IndraStatement objects
+    with subject, object, mechanism type, evidence counts, and optional
+    evidence text snippets.
+
+    Args:
+        data: Backend response dict with 'success' flag and 'statements'/'records' list
+        include_evidence: If True, include evidence text snippets in results
+
+    Returns:
+        List of IndraStatement objects with full metadata
+
+    Example:
+        >>> data = {
+        ...     "success": True,
+        ...     "statements": [
+        ...         {"hash": "abc", "type": "Phosphorylation",
+        ...          "subj_name": "ATM", "obj_name": "TP53",
+        ...          "evidence_count": 12, "belief": 0.95}
+        ...     ]
+        ... }
+        >>> stmts = _parse_statements(data, include_evidence=False)
+        >>> print(stmts[0].stmt_type, stmts[0].evidence_count)
+        Phosphorylation 12
+    """
     if not data.get("success"):
         return []
 
@@ -434,7 +620,30 @@ def _extract_nodes_from_statements(
     statements: list[IndraStatement],
     resolved_genes: list[GeneNode],
 ) -> list[GeneNode]:
-    """Extract unique nodes from statements and resolved genes."""
+    """
+    Extract unique nodes from statements and query genes.
+
+    Builds complete node list by combining:
+    1. Original query genes (always included)
+    2. Additional nodes discovered in statements (intermediaries, etc.)
+
+    Args:
+        statements: List of parsed INDRA statements
+        resolved_genes: Original query genes (from entity resolver)
+
+    Returns:
+        List of unique GeneNode objects (no duplicates by CURIE)
+
+    Example:
+        >>> resolved = [GeneNode(name="TP53", curie="hgnc:11998", ...)]
+        >>> stmts = [...]  # Includes ATM→TP53 phosphorylation
+        >>> nodes = _extract_nodes_from_statements(stmts, resolved)
+        >>> node_names = {n.name for n in nodes}
+        >>> print("ATM" in node_names)  # Found in statements
+        True
+        >>> print("TP53" in node_names)  # From resolved_genes
+        True
+    """
     nodes_dict: dict[str, GeneNode] = {}
 
     # Add resolved genes first
@@ -467,7 +676,36 @@ def _compute_statistics(
     nodes: list[GeneNode],
     statements: list[IndraStatement],
 ) -> NetworkStatistics:
-    """Compute network-level statistics."""
+    """
+    Compute network-level statistics from parsed network data.
+
+    Calculates summary metrics including node/edge counts, statement type
+    distribution, and average evidence quality metrics.
+
+    Args:
+        nodes: List of unique GeneNode objects in network
+        statements: List of IndraStatement objects (edges)
+
+    Returns:
+        NetworkStatistics object with:
+            - node_count: Number of unique genes/proteins
+            - edge_count: Number of mechanistic relationships
+            - statement_types: Dict mapping type → count (e.g., {"Phosphorylation": 15})
+            - avg_evidence_per_statement: Mean evidence count
+            - avg_belief_score: Mean confidence score
+
+    Example:
+        >>> nodes = [...]  # 10 nodes
+        >>> stmts = [...]  # 25 statements
+        >>> stats = _compute_statistics(nodes, stmts)
+        >>> print(f"Network: {stats.node_count} nodes, {stats.edge_count} edges")
+        Network: 10 nodes, 25 edges
+        >>> print(f"Quality: {stats.avg_belief_score:.2f}")
+        Quality: 0.87
+
+    See Also:
+        - NetworkStatistics schema in schemas.py
+    """
     # Count statement types
     stmt_types: dict[str, int] = {}
     total_evidence = 0

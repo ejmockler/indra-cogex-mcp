@@ -72,7 +72,6 @@ pytest tests/integration/ -v -k "smoke" -m "not slow"
 
 ## Next Steps
 
-1. **Test tools**: See `QUICK_START.md` for usage examples
+1. **Test tools**: See `QUICK_START.md` for usage examples and all 16 tools
 2. **Run tests**: See `TESTING.md` for test framework
-3. **Review tools**: See `TOOLS_CATALOG.md` for all 16 tools
-4. **Try evaluation questions**: See `evaluation/questions.xml`
+3. **Try evaluation questions**: See `evaluation/questions.xml`

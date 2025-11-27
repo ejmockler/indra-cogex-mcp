@@ -76,57 +76,27 @@ async def _disease_to_mechanisms(args: dict[str, Any]) -> dict[str, Any]:
     resolver = get_resolver()
     disease_ref = await resolver.resolve_disease(disease_input)
 
-    result = {
-        "disease": {
+    adapter = await get_adapter()
+
+    # Call disease_query with disease_to_mechanisms mode
+    result = await adapter.query(
+        "disease_query",
+        mode="disease_to_mechanisms",
+        disease_id=disease_ref.curie,
+        include_genes=args.get("include_genes", True),
+        include_phenotypes=args.get("include_phenotypes", True),
+        min_evidence=args.get("min_evidence", 1),
+        timeout=STANDARD_QUERY_TIMEOUT,
+    )
+
+    # Add resolved disease info to result
+    if result.get("success"):
+        result["disease"] = {
             "name": disease_ref.name,
             "curie": disease_ref.curie,
             "namespace": disease_ref.namespace,
             "identifier": disease_ref.identifier,
         }
-    }
-
-    adapter = await get_adapter()
-
-    # Fetch requested features
-    if args.get("include_genes", True):
-        gene_data = await adapter.query(
-            "get_genes_for_disease",
-            disease_id=disease_ref.curie,
-            timeout=STANDARD_QUERY_TIMEOUT,
-        )
-        result["genes"] = _parse_gene_associations(gene_data)
-
-    if args.get("include_variants", True):
-        variant_data = await adapter.query(
-            "get_variants_for_disease",
-            disease_id=disease_ref.curie,
-            timeout=STANDARD_QUERY_TIMEOUT,
-        )
-        result["variants"] = _parse_variant_associations(variant_data)
-
-    if args.get("include_phenotypes", True):
-        phenotype_data = await adapter.query(
-            "get_phenotypes_for_disease",
-            disease_id=disease_ref.curie,
-            timeout=STANDARD_QUERY_TIMEOUT,
-        )
-        result["phenotypes"] = _parse_phenotype_associations(phenotype_data)
-
-    if args.get("include_drugs", True):
-        drug_data = await adapter.query(
-            "get_drugs_for_indication",
-            disease_id=disease_ref.curie,
-            timeout=STANDARD_QUERY_TIMEOUT,
-        )
-        result["drugs"] = _parse_drug_therapies(drug_data)
-
-    if args.get("include_trials", True):
-        trial_data = await adapter.query(
-            "get_trials_for_disease",
-            disease_id=disease_ref.curie,
-            timeout=STANDARD_QUERY_TIMEOUT,
-        )
-        result["trials"] = _parse_clinical_trials(trial_data)
 
     return result
 
@@ -138,26 +108,28 @@ async def _phenotype_to_diseases(args: dict[str, Any]) -> dict[str, Any]:
     offset = args.get("offset", 0)
 
     adapter = await get_adapter()
-    disease_data = await adapter.query(
-        "get_diseases_for_phenotype",
+
+    # Call disease_query with phenotype_to_diseases mode
+    result = await adapter.query(
+        "disease_query",
+        mode="phenotype_to_diseases",
         phenotype_id=phenotype_id,
         limit=limit,
-        offset=offset,
         timeout=STANDARD_QUERY_TIMEOUT,
     )
 
-    diseases = _parse_disease_list(disease_data)
-
-    return {
-        "diseases": diseases,
-        "pagination": {
-            "total_count": disease_data.get("total_count", len(diseases)),
+    # Format pagination info
+    if result.get("success"):
+        diseases = result.get("diseases", [])
+        result["pagination"] = {
+            "total_count": result.get("pagination", {}).get("count", len(diseases)),
             "count": len(diseases),
             "offset": offset,
             "limit": limit,
-            "has_more": disease_data.get("total_count", len(diseases)) > offset + len(diseases),
-        },
-    }
+            "has_more": len(diseases) >= limit,
+        }
+
+    return result
 
 
 async def _check_phenotype(args: dict[str, Any]) -> dict[str, Any]:
@@ -170,6 +142,9 @@ async def _check_phenotype(args: dict[str, Any]) -> dict[str, Any]:
     disease_ref = await resolver.resolve_disease(disease_input)
 
     adapter = await get_adapter()
+
+    # Note: DiseaseClient's check_association is for gene-disease, not disease-phenotype
+    # So we still use the direct has_phenotype query
     check_data = await adapter.query(
         "has_phenotype",
         disease_id=disease_ref.curie,
@@ -192,119 +167,3 @@ async def _check_phenotype(args: dict[str, Any]) -> dict[str, Any]:
             "curie": phenotype_id if ":" in phenotype_id else f"unknown:{phenotype_id}",
         },
     }
-
-
-# Data parsing helpers
-def _parse_gene_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Parse gene-disease associations from backend response."""
-    if not data.get("success") or not data.get("records"):
-        return []
-
-    associations = []
-    for record in data["records"]:
-        associations.append({
-            "gene": {
-                "name": record.get("gene", "Unknown"),
-                "curie": record.get("gene_id", "unknown:unknown"),
-            },
-            "score": record.get("score", 0.0),
-            "evidence_count": record.get("evidence_count", 0),
-            "sources": record.get("sources", []),
-        })
-
-    return associations
-
-
-def _parse_variant_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Parse variant-disease associations from backend response."""
-    if not data.get("success") or not data.get("records"):
-        return []
-
-    variants = []
-    for record in data["records"]:
-        variants.append({
-            "variant": record.get("rsid", "unknown"),
-            "gene": {
-                "name": record.get("gene", "Unknown"),
-                "curie": record.get("gene_id", "unknown:unknown"),
-            },
-            "p_value": record.get("p_value"),
-            "odds_ratio": record.get("odds_ratio"),
-            "trait": record.get("trait"),
-        })
-
-    return variants
-
-
-def _parse_phenotype_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Parse disease-phenotype associations from backend response."""
-    if not data.get("success") or not data.get("records"):
-        return []
-
-    phenotypes = []
-    for record in data["records"]:
-        phenotypes.append({
-            "phenotype": {
-                "name": record.get("phenotype", "Unknown"),
-                "curie": record.get("phenotype_id", "unknown:unknown"),
-            },
-            "frequency": record.get("frequency"),
-            "evidence_count": record.get("evidence_count", 0),
-        })
-
-    return phenotypes
-
-
-def _parse_drug_therapies(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Parse drug therapy data from backend response."""
-    if not data.get("success") or not data.get("records"):
-        return []
-
-    drugs = []
-    for record in data["records"]:
-        drugs.append({
-            "drug": {
-                "name": record.get("drug", "Unknown"),
-                "curie": record.get("drug_id", "unknown:unknown"),
-            },
-            "indication_type": record.get("indication_type", "unknown"),
-            "max_phase": record.get("max_phase"),
-            "status": record.get("status"),
-        })
-
-    return drugs
-
-
-def _parse_clinical_trials(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Parse clinical trial data from backend response."""
-    if not data.get("success") or not data.get("records"):
-        return []
-
-    trials = []
-    for record in data["records"]:
-        nct_id = record.get("nct_id", "unknown")
-        trials.append({
-            "nct_id": nct_id,
-            "title": record.get("title", "Unknown Trial"),
-            "phase": record.get("phase"),
-            "status": record.get("status", "unknown"),
-            "url": f"https://clinicaltrials.gov/ct2/show/{nct_id}",
-        })
-
-    return trials
-
-
-def _parse_disease_list(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Parse disease list from backend response."""
-    if not data.get("success") or not data.get("records"):
-        return []
-
-    diseases = []
-    for record in data["records"]:
-        diseases.append({
-            "name": record.get("disease", "Unknown"),
-            "curie": record.get("disease_id", "unknown:unknown"),
-            "description": record.get("description"),
-        })
-
-    return diseases
