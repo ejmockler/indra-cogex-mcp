@@ -1,0 +1,112 @@
+{
+  "generated_at": "2025-11-26T12:50:06.592580",
+  "tests": {
+    "10x_concurrent": {
+      "concurrent_count": 10,
+      "total_time_ms": 0.13170899910619482,
+      "avg_time_per_query_ms": 0.013170899910619482,
+      "success_rate_pct": 0.0,
+      "error_count": 10,
+      "errors": [
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'drug_to_targets'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'drug_to_targets'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'disease_to_genes'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'disease_to_genes'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'resolve_identifiers'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'resolve_identifiers'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'resolve_identifiers'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'resolve_identifiers'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)"
+      ],
+      "timestamp": "2025-11-26T12:49:34.378820",
+      "avg_per_query_ms": 0.013170899910619482
+    },
+    "60x_pool_saturation": {
+      "concurrent_count": 60,
+      "total_time_ms": 0.40383299892710056,
+      "avg_time_per_query_ms": 0.006730549982118343,
+      "success_rate_pct": 0.0,
+      "error_count": 60,
+      "errors": [
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)"
+      ],
+      "timestamp": "2025-11-26T12:49:34.385213",
+      "avg_per_query_ms": 0.006730549982118343,
+      "timeout_errors": 0,
+      "circuit_breaker_errors": 0,
+      "connection_errors": 0
+    },
+    "100x_stress_test": {
+      "concurrent_count": 100,
+      "total_time_ms": 0.5987080003251322,
+      "avg_time_per_query_ms": 0.005987080003251322,
+      "success_rate_pct": 0.0,
+      "error_count": 100,
+      "errors": [
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)",
+        "All backends unavailable for query 'gene_to_features'. Primary: BackendType.NEO4J (BackendHealth.UNHEALTHY), Fallback: BackendType.REST (BackendHealth.UNHEALTHY)"
+      ],
+      "timestamp": "2025-11-26T12:49:34.391195",
+      "avg_per_query_ms": 0.005987080003251322,
+      "timeout_errors": 0,
+      "circuit_breaker_errors": 0,
+      "connection_errors": 0
+    },
+    "sequential_vs_concurrent": {
+      "concurrent_count": 10,
+      "total_time_ms": 0.10612500045681372,
+      "avg_time_per_query_ms": 0.010612500045681372,
+      "success_rate_pct": 100.0,
+      "error_count": 0,
+      "errors": [],
+      "timestamp": "2025-11-26T12:49:34.396179",
+      "sequential_time_ms": 0.04095899930689484,
+      "concurrent_time_ms": 0.10612500045681372,
+      "speedup": 0.3859505218429903
+    },
+    "gradual_load_ramp": {
+      "concurrent_count": 10,
+      "total_time_ms": 0,
+      "avg_time_per_query_ms": 0.0,
+      "success_rate_pct": 0,
+      "error_count": 0,
+      "errors": [],
+      "timestamp": "2025-11-26T12:49:34.401125",
+      "max_successful_load": 10,
+      "results_by_load": {
+        "10": {
+          "total_time_ms": 0.11754200022551231,
+          "success_rate_pct": 0.0,
+          "error_count": 10
+        }
+      }
+    },
+    "test_concurrency": {
+      "concurrent_count": 10,
+      "total_time_ms": 5000.0,
+      "avg_time_per_query_ms": 500.0,
+      "success_rate_pct": 100.0,
+      "error_count": 0,
+      "errors": [],
+      "timestamp": "2025-11-26T12:50:06.592575"
+    }
+  }
+}

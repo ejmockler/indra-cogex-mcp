@@ -1,8 +1,8 @@
 """
-Tool Registry - All 16 MCP Tool Definitions
+Tool Registry - All 17 MCP Tool Definitions
 
 This module contains the tool definitions (schemas and descriptions)
-for all 16 INDRA CoGEx MCP tools.
+for all 17 INDRA CoGEx MCP tools (16 domain tools + 1 GILDA grounding tool).
 """
 
 import mcp.types as types
@@ -13,8 +13,75 @@ def get_all_tools() -> list[types.Tool]:
     return TOOL_DEFINITIONS
 
 
-# All 16 tool definitions
+# All 17 tool definitions (16 domain tools + 1 GILDA grounding tool)
 TOOL_DEFINITIONS = [
+    # Tool 0: GILDA Biomedical Entity Grounding
+    types.Tool(
+        name="ground_biomedical_term",
+        description="""Ground natural language biomedical terms to standardized CURIEs.
+
+This tool uses GILDA (Grounding of biomedical named entities) to convert user-provided
+natural language terms into precise, standardized ontology identifiers (CURIEs).
+
+**When to use this tool:**
+- User provides ambiguous terms: "ALS", "ER", "MS", "AD", "PD"
+- User uses synonyms: "Lou Gehrig's disease", "Type 2 diabetes", "T2D"
+- User uses common names instead of CURIEs: "diabetes" instead of "mesh:D003920"
+- Before calling domain tools with natural language inputs
+
+**Output:**
+Returns standardized CURIEs in CoGEx format (lowercase namespace, no redundant prefixes):
+- chebi:8863 (NOT CHEBI:CHEBI:8863)
+- mesh:D003920 (NOT MESH:D003920)
+- hgnc:11998 (NOT HGNC:HGNC:11998)
+
+**Workflow:**
+1. User asks: "What genes are associated with ALS?"
+2. Call ground_biomedical_term(term="ALS") → returns mesh:D000690
+3. Call query_disease_or_phenotype(disease="mesh:D000690", mode="disease_to_mechanisms")
+
+**Examples:**
+- Ground disease: ground_biomedical_term(term="diabetes mellitus")
+  → Returns: mesh:D003920, doid:9351, mondo:0005015
+- Ground drug: ground_biomedical_term(term="riluzole")
+  → Returns: chebi:8863
+- Ground gene: ground_biomedical_term(term="p53")
+  → Returns: hgnc:11998 (TP53)
+- Disambiguate abbreviation: ground_biomedical_term(term="ER")
+  → Returns: Multiple matches (ESR1 gene, endoplasmic reticulum, etc.)
+  → LLM uses conversation context to pick correct one
+
+**Disambiguation:**
+- Single strong match → Recommendation provided
+- Multiple matches → LLM chooses based on conversation context
+- No matches → Helpful error message with alternatives
+
+**Note:** This tool does NOT query the CoGEx database. It ONLY grounds terms to CURIEs.
+After grounding, use the appropriate domain tool (query_disease_or_phenotype, etc.)
+with the returned CURIE.
+""",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "term": {
+                    "type": "string",
+                    "description": "Natural language biomedical term (e.g., 'diabetes', 'ALS', 'TP53')",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of matches to return (default: 5, max: 20)",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Optional conversation context for disambiguation",
+                },
+            },
+            "required": ["term"],
+        },
+    ),
     # Tool 1: Disease/Phenotype Query
     types.Tool(
         name="query_disease_or_phenotype",
@@ -33,11 +100,26 @@ diagnosis and phenotype-based discovery.
 **Mode 3: check_phenotype**
 Boolean check: Does a specific disease exhibit a specific phenotype?
 
-Examples:
-- Get diabetes profile: mode="disease_to_mechanisms", disease="diabetes mellitus"
+**Recommended workflow:**
+1. If user provides natural language term, use ground_biomedical_term() first
+2. Then call this tool with the grounded CURIE
+
+**Input Formats:**
+- CURIEs: "doid:332", "mesh:D003920", "mondo:0005015" - PREFERRED
+- Natural language: "diabetes", "ALS" - May fail if ambiguous
+
+**Examples:**
+Good workflow:
+  Step 1: ground_biomedical_term("ALS") returns mesh:D000690
+  Step 2: query_disease_or_phenotype(mode="disease_to_mechanisms", disease="mesh:D000690")
+
+Acceptable (but risky):
+  query_disease_or_phenotype(mode="disease_to_mechanisms", disease="diabetes mellitus")
+  Note: Tool will attempt Neo4j name search fallback, which may be ambiguous
+
+Other examples:
 - Find diseases with seizures: mode="phenotype_to_diseases", phenotype="HP:0001250"
-- Check if Alzheimer's has memory impairment: mode="check_phenotype",
-  disease="Alzheimer disease", phenotype="memory impairment"
+- Check association: mode="check_phenotype", disease="mesh:D000690", phenotype="memory impairment"
 """,
         inputSchema={
             "type": "object",
@@ -124,7 +206,21 @@ This tool supports 5 query modes for comprehensive gene-feature exploration:
 - domain_to_genes: Find genes containing a specific protein domain
 - phenotype_to_genes: Find genes associated with a specific phenotype
 
-Examples:
+**Recommended workflow:**
+1. If user provides natural language gene name, use ground_biomedical_term() first
+2. Then call this tool with the grounded CURIE or gene symbol
+
+**Input Formats:**
+- Gene symbols: "TP53", "BRCA1", "EGFR" - Usually works well
+- CURIEs: "hgnc:11998", "uniprot:P04637" - PREFERRED for precision
+- Natural language: "p53", "breast cancer gene 1" - Use GILDA first
+
+**Examples:**
+Good workflow:
+  Step 1: ground_biomedical_term("p53") returns hgnc:11998 (TP53)
+  Step 2: query_gene_or_feature(mode="gene_to_features", gene="TP53")
+
+Direct usage:
 - Get TP53 profile: mode="gene_to_features", gene="TP53"
 - Find brain genes: mode="tissue_to_genes", tissue="brain"
 - Find kinases: mode="go_to_genes", go_term="GO:0016301"
@@ -169,7 +265,12 @@ Query modes:
 - shared_downstream: Shared targets (A→X←B)
 - source_to_targets: One source gene → multiple targets
 
-Examples:
+**Input Formats:**
+- Gene symbols: "TP53", "BRCA1", "EGFR" - Usually works well
+- For ambiguous gene names: Use ground_biomedical_term() to verify identity
+
+**Examples:**
+Direct usage (standard gene symbols):
 - Direct interactions: mode="direct", genes=["TP53", "MDM2"]
 - Find pathway: mode="mediated", genes=["BRCA1", "RAD51"]
 - Shared regulators: mode="shared_upstream", genes=["JAK1", "STAT3"]
@@ -206,9 +307,23 @@ Analysis types:
 
 Sources: go, reactome, wikipathways, indra-upstream, indra-downstream, phenotype
 
-Examples:
+**Recommended workflow:**
+1. Gene symbols usually work well (e.g., "TP53", "BRCA1")
+2. For ambiguous gene names, use ground_biomedical_term() first to verify identity
+
+**Input Formats:**
+- Gene symbols: "TP53", "MDM2", "EGFR" - Usually works well
+- Gene CURIEs: "hgnc:11998" - Also supported
+- Ambiguous names: "p53", "ER" - Use GILDA to disambiguate first
+
+**Examples:**
+Direct usage (recommended for standard gene symbols):
 - Discrete GO enrichment: analysis_type="discrete", gene_list=["TP53", "MDM2"], source="go"
 - GSEA: analysis_type="continuous", ranked_genes={"TP53": 2.5, "MDM2": -1.8}, source="reactome"
+
+With GILDA (for ambiguous terms):
+  Step 1: ground_biomedical_term("p53") returns hgnc:11998 (TP53)
+  Step 2: enrichment_analysis(gene_list=["TP53", "MDM2"], ...)
 """,
         inputSchema={
             "type": "object",
@@ -238,7 +353,21 @@ Modes:
 - drug_to_profile: Drug → comprehensive profile (targets, indications, side effects, trials, cell lines)
 - side_effect_to_drugs: Side effect → drugs causing that effect
 
-Examples:
+**Recommended workflow:**
+1. If user provides natural language drug name, use ground_biomedical_term() first
+2. Then call this tool with the grounded CURIE
+
+**Input Formats:**
+- CURIEs: "chebi:45783", "drugbank:DB00619" - PREFERRED
+- Drug names: "imatinib", "aspirin", "pembrolizumab" - Usually works, but may be ambiguous
+- Natural language: "Gleevec", "cancer drug" - Use GILDA first
+
+**Examples:**
+Good workflow:
+  Step 1: ground_biomedical_term("Gleevec") returns chebi:45783 (imatinib)
+  Step 2: query_drug_or_effect(mode="drug_to_profile", drug="chebi:45783")
+
+Direct usage:
 - Get imatinib profile: mode="drug_to_profile", drug="imatinib"
 - Find drugs causing nausea: mode="side_effect_to_drugs", side_effect="nausea"
 """,
@@ -271,7 +400,21 @@ Modes:
 - find_shared: Genes → pathways containing ALL genes
 - check_membership: Boolean check if gene is in pathway
 
-Examples:
+**Recommended workflow:**
+1. For pathway names: Use ground_biomedical_term() to get pathway CURIEs
+2. For gene names: Gene symbols usually work, but use GILDA for ambiguous terms
+
+**Input Formats:**
+- Pathway CURIEs: "reactome:R-HSA-168249", "go:0006915" - PREFERRED
+- Pathway names: "MAPK signaling", "p53 pathway" - May be ambiguous
+- Gene symbols: "TP53", "BRCA1" - Usually works well
+
+**Examples:**
+Good workflow:
+  Step 1: ground_biomedical_term("apoptosis pathway") returns go:0006915
+  Step 2: query_pathway(mode="get_genes", pathway="go:0006915")
+
+Direct usage:
 - Get genes in MAPK: mode="get_genes", pathway="MAPK signaling"
 - Get pathways for TP53: mode="get_pathways", gene="TP53"
 - Find shared pathways: mode="find_shared", genes=["TP53", "MDM2"]
@@ -333,7 +476,22 @@ Modes:
 - get_for_disease: Disease → clinical trials for that disease
 - get_by_id: NCT ID → trial details
 
-Examples:
+**Recommended workflow:**
+1. For drug/disease names: Use ground_biomedical_term() first to get CURIEs
+2. For NCT IDs: Direct usage (e.g., "NCT12345678")
+
+**Input Formats:**
+- CURIEs: "chebi:45783", "mesh:D000690", "mondo:0004975" - PREFERRED
+- Standard names: "pembrolizumab", "Alzheimer's disease" - Usually works
+- Ambiguous terms: "Keytruda", "ALS", "dementia" - Use GILDA first
+- NCT IDs: "NCT12345678" - Direct usage
+
+**Examples:**
+Good workflow:
+  Step 1: ground_biomedical_term("Keytruda") returns chebi:164898 (pembrolizumab)
+  Step 2: query_clinical_trials(mode="get_for_drug", drug="chebi:164898")
+
+Direct usage:
 - Find trials for pembrolizumab: mode="get_for_drug", drug="pembrolizumab"
 - Find Alzheimer's trials: mode="get_for_disease", disease="Alzheimer's disease"
 - Get trial details: mode="get_by_id", trial_id="NCT12345678"
@@ -400,9 +558,24 @@ Modes:
 - variant_to_phenotypes: Variant → associated phenotypes
 - check_association: Check variant-disease association
 
-Examples:
+**Recommended workflow:**
+1. For disease/phenotype terms: Use ground_biomedical_term() first
+2. For genes: Gene symbols usually work well
+3. For variants: rsIDs work directly (e.g., "rs7412")
+
+**Input Formats:**
+- Disease CURIEs: "mondo:0004975", "doid:10652" - PREFERRED
+- Gene symbols: "APOE", "BRCA1" - Usually works well
+- rsIDs: "rs7412", "rs429358" - Direct usage
+- Natural language: "Alzheimer's disease", "heart disease" - Use GILDA first
+
+**Examples:**
+Good workflow (disease):
+  Step 1: ground_biomedical_term("Alzheimer's disease") returns mondo:0004975
+  Step 2: query_variants(mode="get_for_disease", disease="mondo:0004975")
+
+Direct usage:
 - GWAS hits for APOE: mode="get_for_gene", gene="APOE"
-- Alzheimer's variants: mode="get_for_disease", disease="Alzheimer's disease"
 - Genes near variant: mode="variant_to_genes", variant="rs7412"
 """,
         inputSchema={
@@ -468,7 +641,22 @@ Relationship types:
 - cell_line_mutation: Does cell line have mutation in gene?
 - cell_marker: Is gene a marker for cell type?
 
-Examples:
+**Recommended workflow:**
+1. For ambiguous entity names: Use ground_biomedical_term() first to get CURIEs
+2. For well-known entities: Direct usage usually works
+
+**Input Formats:**
+- CURIEs: "mesh:D000690", "chebi:45783", "hgnc:11998" - PREFERRED
+- Standard names: "TP53", "imatinib", "Alzheimer's disease" - Usually works
+- Ambiguous terms: "ALS", "ER", "Gleevec" - Use GILDA first
+
+**Examples:**
+Good workflow (ambiguous terms):
+  Step 1: ground_biomedical_term("ALS") returns mesh:D000690
+  Step 2: ground_biomedical_term("Riluzole") returns chebi:8863
+  Step 3: check_relationship(relationship_type="drug_indication", entity1="chebi:8863", entity2="mesh:D000690")
+
+Direct usage (unambiguous):
 - Is TP53 in p53 signaling? relationship_type="gene_in_pathway", entity1="TP53", entity2="p53 signaling"
 - Does imatinib target ABL1? relationship_type="drug_target", entity1="imatinib", entity2="ABL1"
 """,
@@ -493,10 +681,24 @@ Modes:
 - children: Get child/descendant terms
 - both: Get both parents and children
 
-Examples:
+**Recommended workflow:**
+1. For ontology term names: Use ground_biomedical_term() first to get term CURIEs
+2. For term IDs: Direct usage works well (e.g., "GO:0006915", "HP:0001250")
+
+**Input Formats:**
+- Term CURIEs: "go:0006915", "hp:0001250", "mondo:0004975" - PREFERRED
+- Term IDs: "GO:0006915", "HP:0001250" - Also works
+- Natural language: "apoptosis", "seizures", "cell death" - Use GILDA first
+
+**Examples:**
+Good workflow (natural language):
+  Step 1: ground_biomedical_term("cell death") returns go:0008219
+  Step 2: get_ontology_hierarchy(term="go:0008219", direction="parents")
+
+Direct usage (term IDs):
 - Get parents of apoptosis: term="GO:0006915", direction="parents", max_depth=3
 - Get children: term="GO:0009987", direction="children", max_depth=2
-- Full hierarchy: term="apoptosis", direction="both", max_depth=2
+- Full hierarchy: term="go:0006915", direction="both", max_depth=2
 """,
         inputSchema={
             "type": "object",

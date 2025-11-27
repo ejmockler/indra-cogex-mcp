@@ -113,6 +113,7 @@ async def handle_call_tool(
     """
     # Import handlers dynamically
     from cogex_mcp.server.handlers import (
+        gilda,
         disease_phenotype,
         gene_feature,
         subnetwork,
@@ -133,7 +134,9 @@ async def handle_call_tool(
 
     try:
         # Route to appropriate handler
-        if name == "query_disease_or_phenotype":
+        if name == "ground_biomedical_term":
+            return await gilda.handle(arguments)
+        elif name == "query_disease_or_phenotype":
             return await disease_phenotype.handle(arguments)
         elif name == "query_gene_or_feature":
             return await gene_feature.handle(arguments)
@@ -178,7 +181,7 @@ async def handle_call_tool(
 async def main():
     """Main entry point."""
     logger.info("=" * 80)
-    logger.info("INDRA CoGEx MCP Server (Modular) v1.0.0 - All 16 Tools")
+    logger.info("INDRA CoGEx MCP Server (Modular) v1.0.0 - All 17 Tools (16 + GILDA)")
     logger.info("=" * 80)
     logger.info("Transport: stdio")
     logger.info(f"Debug mode: {settings.debug_mode}")

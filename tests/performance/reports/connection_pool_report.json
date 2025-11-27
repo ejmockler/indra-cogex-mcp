@@ -1,0 +1,316 @@
+{
+  "generated_at": "2025-11-26T12:50:06.560133",
+  "tests": {
+    "cache_cold_start": {
+      "pool_stats": [],
+      "summary": {
+        "query_count": 50,
+        "unique_entities": 5,
+        "expected_cache_hits": 45,
+        "estimated_hit_rate_pct": 90.0,
+        "avg_cold_latency_ms": 190.59689179994166,
+        "avg_warm_latency_ms": 90.17928706667186,
+        "speedup_from_cache": 2.113532918695936
+      },
+      "timestamp": "2025-11-26T12:49:02.082876"
+    },
+    "cache_warmup_strategy": {
+      "pool_stats": [],
+      "summary": {
+        "warmup_entity_count": 10,
+        "warmup_time_ms": 480.9302920002665,
+        "warmup_errors": 1,
+        "test_query_count": 50,
+        "test_time_ms": 490.22845800027426,
+        "test_errors": 0,
+        "avg_query_time_ms": 9.804569160005485,
+        "cache_hit_rate_pct": 100.0
+      },
+      "timestamp": "2025-11-26T12:49:03.064295"
+    },
+    "cache_eviction": {
+      "pool_stats": [],
+      "summary": {
+        "cache_size": 1000,
+        "fill_query_count": 1100,
+        "fill_time_ms": 31285.57650000039,
+        "avg_evicted_query_ms": 0.012861249997513369,
+        "avg_recent_query_ms": 0.006121249989519129,
+        "eviction_working": true
+      },
+      "timestamp": "2025-11-26T12:49:34.355904"
+    },
+    "concurrent_utilization": {
+      "pool_stats": [],
+      "summary": {
+        "concurrent_count": 30,
+        "total_time_ms": 0.21895800091442652,
+        "success_rate_pct": 0.0,
+        "error_count": 30,
+        "max_active_connections": 30,
+        "pool_size": 50,
+        "utilization_pct": 60.0
+      },
+      "timestamp": "2025-11-26T12:49:34.412993"
+    },
+    "pool_saturation": {
+      "pool_stats": [],
+      "summary": {
+        "concurrent_count": 60,
+        "total_time_ms": 0.38250000034167897,
+        "success_rate_pct": 0.0,
+        "error_count": 60,
+        "timeout_errors": 0,
+        "connection_errors": 0,
+        "max_active_connections": 50,
+        "pool_size": 50,
+        "utilization_pct": 100.0,
+        "queuing_detected": true
+      },
+      "timestamp": "2025-11-26T12:49:34.418411"
+    },
+    "connection_reuse": {
+      "pool_stats": [
+        {
+          "iteration": 0,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 1,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 2,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 3,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 4,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 5,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 6,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 7,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 8,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 9,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 10,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 11,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 12,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 13,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 14,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 15,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 16,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 17,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 18,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 19,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 20,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 21,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 22,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 23,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 24,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 25,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 26,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 27,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 28,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 29,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 30,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 31,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 32,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 33,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 34,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 35,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 36,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 37,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 38,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 39,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 40,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 41,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 42,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 43,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 44,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 45,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 46,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 47,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 48,
+          "latency_ms": 60000.0
+        },
+        {
+          "iteration": 49,
+          "latency_ms": 60000.0
+        }
+      ],
+      "summary": {
+        "query_count": 50,
+        "first_query_latency_ms": 60000.0,
+        "avg_subsequent_latency_ms": 60000.0,
+        "min_latency_ms": 60000.0,
+        "max_latency_ms": 60000.0,
+        "latency_variance_ms": 0.0,
+        "connection_reuse_efficient": false
+      },
+      "timestamp": "2025-11-26T12:49:34.424520"
+    },
+    "pool_recovery": {
+      "pool_stats": [],
+      "summary": {
+        "saturation_query_count": 60,
+        "saturation_time_ms": 0.37429199983307626,
+        "saturation_error_count": 60,
+        "recovery_query_count": 10,
+        "recovery_time_ms": 0.1429999992978992,
+        "recovery_error_count": 10,
+        "recovery_success_rate_pct": 0.0,
+        "pool_recovered": false
+      },
+      "timestamp": "2025-11-26T12:49:36.432696"
+    },
+    "sustained_load": {
+      "pool_stats": [],
+      "summary": {
+        "duration_seconds": 30.107393980026245,
+        "queries_per_second_target": 10,
+        "total_queries": 300,
+        "actual_qps": 9.964329699177055,
+        "avg_latency_ms": 0.05930152997583112,
+        "error_count": 300,
+        "error_rate_pct": 100.0,
+        "max_latency_ms": 0.2199917000325513,
+        "min_latency_ms": 0.01557909999974072
+      },
+      "timestamp": "2025-11-26T12:50:06.560098"
+    }
+  }
+}

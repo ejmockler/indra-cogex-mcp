@@ -19,6 +19,7 @@ from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 
 from cogex_mcp.clients.adapter import close_adapter, get_adapter
+from cogex_mcp.clients.gilda_client import GildaClient
 from cogex_mcp.config import settings
 from cogex_mcp.services.cache import get_cache
 from cogex_mcp.services.entity_resolver import get_resolver, EntityResolutionError
@@ -48,11 +49,12 @@ server = Server("cogex_mcp")
 # Global state
 _adapter = None
 _cache = None
+_gilda_client = None
 
 
 async def initialize_backend():
     """Initialize backend connections and services."""
-    global _adapter, _cache
+    global _adapter, _cache, _gilda_client
 
     logger.info("🚀 Starting INDRA CoGEx MCP Server (Low-Level)")
     logger.info(
@@ -70,6 +72,10 @@ async def initialize_backend():
         f"✓ Cache initialized: max_size={_cache.max_size}, "
         f"ttl={_cache.ttl_seconds}s, enabled={_cache.enabled}"
     )
+
+    # Initialize GILDA client
+    _gilda_client = GildaClient()
+    logger.info("✓ GILDA client initialized")
 
     # Get adapter status
     status = _adapter.get_status()
@@ -676,6 +682,55 @@ Examples:
                 "required": ["mode"],
             },
         ),
+        # Tool 17: GILDA Entity Grounding
+        types.Tool(
+            name="ground_biomedical_term",
+            description="""Ground a biomedical term to standardized identifiers using GILDA.
+
+⚠️ IMPORTANT: Use this tool FIRST when you receive natural language terms from the user
+(like "diabetes", "ALS", "breast cancer") BEFORE calling other domain tools.
+
+This tool converts ambiguous text into precise CURIEs that other tools require.
+GILDA (Grounding of biomedical named entities) is an authoritative service that maps
+text to CURIEs across all major biomedical ontologies.
+
+When to use:
+✓ User says: "What genes cause diabetes?" → Ground "diabetes" first
+✓ User says: "Find drugs for ALS" → Ground "ALS" first
+✓ User says: "ER expression in tissues" → Ground "ER" first (ambiguous!)
+
+When to skip:
+✗ User provides CURIE: "doid:332" → Use directly
+✗ You already grounded it earlier in conversation → Reuse CURIE
+
+Workflow:
+1. Call this tool with natural language term
+2. Review matches (if multiple, ask user for clarification)
+3. Use selected CURIE with domain tools (query_disease, query_gene, etc.)
+
+Examples:
+- Unambiguous: ground_biomedical_term("diabetes mellitus") → mesh:D003920
+- Ambiguous: ground_biomedical_term("ER") → multiple matches (ESR1 gene, endoplasmic reticulum)
+- Synonym: ground_biomedical_term("Lou Gehrig's disease") → mesh:D000690 (ALS)
+""",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "term": {
+                        "type": "string",
+                        "description": "Natural language term to ground (e.g., 'diabetes', 'ALS', 'p53')",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of matches to return (default: 5)",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "default": 5,
+                    },
+                },
+                "required": ["term"],
+            },
+        ),
     ]
 
 
@@ -718,6 +773,8 @@ async def handle_call_tool(
             return await _handle_kinase_enrichment(arguments)
         elif name == "query_protein_functions":
             return await _handle_protein_functions_query(arguments)
+        elif name == "ground_biomedical_term":
+            return await _handle_ground_biomedical_term(arguments)
         else:
             raise ValueError(f"Unknown tool: {name}")
     except Exception as e:
@@ -5299,10 +5356,81 @@ def _parse_gene_list_protein_function(data: dict[str, Any]) -> list[dict[str, An
     return genes
 
 
+# ============================================================================
+# Tool 17: GILDA Entity Grounding
+# ============================================================================
+
+async def _handle_ground_biomedical_term(args: dict[str, Any]) -> list[types.TextContent]:
+    """Handle GILDA entity grounding."""
+    term = args.get("term")
+    limit = args.get("limit", 5)
+
+    if not term:
+        return [types.TextContent(
+            type="text",
+            text="Error: term parameter required"
+        )]
+
+    try:
+        # Call GILDA API via client
+        global _gilda_client
+        if _gilda_client is None:
+            return [types.TextContent(
+                type="text",
+                text="Error: GILDA client not initialized"
+            )]
+
+        gilda_results = await _gilda_client.ground(term)
+
+        # Format for LLM consumption
+        matches = []
+        for result in gilda_results[:limit]:
+            term_data = result.get("term", {})
+
+            # CURIE is already normalized by GildaClient
+            curie = f"{term_data.get('db', 'unknown')}:{term_data.get('id', 'unknown')}"
+
+            matches.append({
+                "name": term_data.get("text", "Unknown"),
+                "curie": curie,
+                "namespace": term_data.get("db", "unknown"),
+                "description": term_data.get("entry_name") or term_data.get("definition", ""),
+                "score": result.get("score", 0.0),
+            })
+
+        # Build response
+        response = {
+            "term": term,
+            "matches": matches,
+            "suggestion": (
+                f"Use the CURIE '{matches[0]['curie']}' with other tools "
+                f"(e.g., query_disease_or_phenotype(disease='{matches[0]['curie']}'))."
+                if matches else
+                "No matches found. Try alternative spelling, terminology, or a more specific term."
+            )
+        }
+
+        # Format as JSON for LLM
+        return [types.TextContent(
+            type="text",
+            text=json.dumps(response, indent=2)
+        )]
+
+    except Exception as e:
+        logger.error(f"GILDA grounding error for '{term}': {e}", exc_info=True)
+        return [types.TextContent(
+            type="text",
+            text=f"Error: GILDA grounding failed for '{term}'. {str(e)}"
+        )]
+
+
+logger.info("✓ Tool 17 (ground_biomedical_term) registered")
+
+
 async def main():
     """Main entry point."""
     logger.info("=" * 80)
-    logger.info("INDRA CoGEx MCP Server (Low-Level) v1.0.0 - All 16 Tools")
+    logger.info("INDRA CoGEx MCP Server (Low-Level) v1.0.0 - All 17 Tools")
     logger.info("=" * 80)
     logger.info("Transport: stdio")
     logger.info(f"Debug mode: {settings.debug_mode}")
